@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客服聊天WebSocket测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .chat-box {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            text-align: right;
+        }
+        .customer-message {
+            background-color: #f3e5f5;
+        }
+        .system-message {
+            background-color: #fff3e0;
+            font-style: italic;
+        }
+        .input-area {
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 8px;
+        }
+        button {
+            padding: 8px 16px;
+            margin-left: 10px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .connected {
+            background-color: #c8e6c9;
+        }
+        .disconnected {
+            background-color: #ffcdd2;
+        }
+    </style>
+</head>
+<body>
+    <h1>客服聊天WebSocket测试</h1>
+    
+    <div class="status" id="status">未连接</div>
+    
+    <div class="container">
+        <div>
+            <h3>用户端</h3>
+            <div class="chat-box" id="userChat"></div>
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="输入消息..." disabled>
+                <button onclick="connectUser()">连接用户</button>
+                <button onclick="disconnectUser()">断开连接</button>
+                <button onclick="sendUserMessage()" disabled id="sendUserBtn">发送</button>
+            </div>
+        </div>
+        
+        <div>
+            <h3>客服端</h3>
+            <div class="chat-box" id="customerChat"></div>
+            <div class="input-area">
+                <input type="text" id="customerInput" placeholder="输入消息..." disabled>
+                <button onclick="connectCustomer()">连接客服</button>
+                <button onclick="disconnectCustomer()">断开连接</button>
+                <button onclick="sendCustomerMessage()" disabled id="sendCustomerBtn">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userWebSocket = null;
+        let customerWebSocket = null;
+        let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        let customerId = 'customer_' + Math.random().toString(36).substr(2, 9);
+
+        function connectUser() {
+            if (userWebSocket && userWebSocket.readyState === WebSocket.OPEN) {
+                alert('用户已连接');
+                return;
+            }
+            
+            const wsUrl = `ws://localhost/ws/customer-service?userId=${userId}&type=user`;
+            userWebSocket = new WebSocket(wsUrl);
+            
+            userWebSocket.onopen = function(event) {
+                updateStatus('用户已连接', 'connected');
+                document.getElementById('userInput').disabled = false;
+                document.getElementById('sendUserBtn').disabled = false;
+                addMessage('userChat', '系统', '用户连接成功', 'system-message');
+            };
+            
+            userWebSocket.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                addMessage('userChat', '客服', message.content, 'customer-message');
+            };
+            
+            userWebSocket.onclose = function(event) {
+                updateStatus('用户连接已断开', 'disconnected');
+                document.getElementById('userInput').disabled = true;
+                document.getElementById('sendUserBtn').disabled = true;
+                addMessage('userChat', '系统', '连接已断开', 'system-message');
+            };
+            
+            userWebSocket.onerror = function(error) {
+                console.error('用户WebSocket错误:', error);
+                addMessage('userChat', '系统', '连接错误', 'system-message');
+            };
+        }
+
+        function connectCustomer() {
+            if (customerWebSocket && customerWebSocket.readyState === WebSocket.OPEN) {
+                alert('客服已连接');
+                return;
+            }
+            
+            const wsUrl = `ws://localhost/ws/customer-service?userId=${customerId}&type=customer`;
+            customerWebSocket = new WebSocket(wsUrl);
+            
+            customerWebSocket.onopen = function(event) {
+                updateStatus('客服已连接', 'connected');
+                document.getElementById('customerInput').disabled = false;
+                document.getElementById('sendCustomerBtn').disabled = false;
+                addMessage('customerChat', '系统', '客服连接成功', 'system-message');
+            };
+            
+            customerWebSocket.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                addMessage('customerChat', '用户', message.content, 'user-message');
+            };
+            
+            customerWebSocket.onclose = function(event) {
+                updateStatus('客服连接已断开', 'disconnected');
+                document.getElementById('customerInput').disabled = true;
+                document.getElementById('sendCustomerBtn').disabled = true;
+                addMessage('customerChat', '系统', '连接已断开', 'system-message');
+            };
+            
+            customerWebSocket.onerror = function(error) {
+                console.error('客服WebSocket错误:', error);
+                addMessage('customerChat', '系统', '连接错误', 'system-message');
+            };
+        }
+
+        function disconnectUser() {
+            if (userWebSocket) {
+                userWebSocket.close();
+                userWebSocket = null;
+            }
+        }
+
+        function disconnectCustomer() {
+            if (customerWebSocket) {
+                customerWebSocket.close();
+                customerWebSocket = null;
+            }
+        }
+
+        function sendUserMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (message && userWebSocket && userWebSocket.readyState === WebSocket.OPEN) {
+                const chatMessage = {
+                    type: 'chat',
+                    fromUserId: userId,
+                    toUserId: customerId,
+                    content: message,
+                    timestamp: Date.now()
+                };
+                userWebSocket.send(JSON.stringify(chatMessage));
+                addMessage('userChat', '我', message, 'user-message');
+                input.value = '';
+            }
+        }
+
+        function sendCustomerMessage() {
+            const input = document.getElementById('customerInput');
+            const message = input.value.trim();
+            if (message && customerWebSocket && customerWebSocket.readyState === WebSocket.OPEN) {
+                const chatMessage = {
+                    type: 'chat',
+                    fromUserId: customerId,
+                    toUserId: userId,
+                    content: message,
+                    timestamp: Date.now()
+                };
+                customerWebSocket.send(JSON.stringify(chatMessage));
+                addMessage('customerChat', '我', message, 'customer-message');
+                input.value = '';
+            }
+        }
+
+        function addMessage(chatBoxId, sender, content, className) {
+            const chatBox = document.getElementById(chatBoxId);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${className}`;
+            messageDiv.innerHTML = `<strong>${sender}:</strong> ${content}`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${className}`;
+        }
+
+        // 回车发送消息
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendUserMessage();
+            }
+        });
+
+        document.getElementById('customerInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendCustomerMessage();
+            }
+        });
+    </script>
+</body>
+</html>

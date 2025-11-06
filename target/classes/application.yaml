@@ -1,0 +1,156 @@
+server:
+  port: 8086
+
+
+# 聊天系统业务配置
+chat:
+  # Stream配置
+  stream:
+    key: "chat:{global}"      # 使用哈希标签确保槽位稳定
+    max-length: 100000        # 最大消息数量，使用 XADD MAXLEN ~ 进行写入时裁剪
+                              # 内存占用估算：~70MB（按文本消息0.7KB/条计算）
+                              # 实现方式：XADD chat:global MAXLEN ~ maxLength * message messageJson
+                              # 注意：Redis Stream 没有逐条TTL，只能通过长度裁剪（MAXLEN）或时间ID裁剪（MINID）
+                              # 建议根据业务消息量和内存预算调整此值
+  
+  # 文件上传配置
+  file:
+    storage-path: /data/chat/files
+    temp-path: /data/chat/temp
+    base-url: http://localhost:8080/chat/file
+    
+  # 病毒扫描配置
+  virus-scan:
+    enabled: true
+    engine: clamav  # clamav, mock
+    timeout: 30
+    temp-dir: /tmp/chat-uploads
+    
+  # WebSocket安全配置
+  websocket:
+    # 连接限制（允许连接但限制消息发送）
+    max-connections-per-user: 5
+    max-connections-per-ip: 15
+    max-total-connections: 10000
+    
+    # 速率限制
+    max-messages-per-minute: 60
+    max-messages-per-hour: 1000
+    max-global-messages-per-minute: 10000
+    
+    # 消息限制
+    max-message-length: 10000
+
+# application-dev.yml（示例）
+spring:
+  # 数据库配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.8.109:3307/mall?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: root
+    password: root
+  
+  data:
+    redis:
+      host: 192.168.8.109         # ✅ 单机，生产使用集群 cluster.nodes
+      port: 6379
+      # password: your-pass        # 如果有密码，就打开
+      timeout: 7s
+      lettuce:
+        pool:
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+
+  # 注意：Redisson 的键在 spring.redis（没有 data）
+  redis:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: "redis://192.168.8.109:6379"
+          # password: "your-pass"
+          database: 0
+          timeout: 3000
+          connectTimeout: 10000
+          retryAttempts: 3
+          retryInterval: 1500
+          connectionPoolSize: 10
+          connectionMinimumIdleSize: 4
+        # threads: 0
+        # nettyThreads: 0
+  
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+      enabled: true
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.treasurehunt.chat.domain
+
+sa-token:
+  # token名称 (同时也是cookie名称)
+  token-name: Authorization
+  # token有效期，单位秒，-1代表永不过期
+  timeout: 604800
+  # token临时有效期 (指定时间内无操作就视为token过期)，单位秒
+  active-timeout: -1
+  # 是否允许同一账号并发登录 (为false时新登录挤掉旧登录)
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个token (为false时每次登录新建一个token)
+  is-share: false
+  # token风格
+  token-style: jwt
+  # 是否输出操作日志
+  is-log: false
+  # 是否从cookie中读取token
+  is-read-cookie: false
+  # 是否从head中读取token
+  is-read-header: true
+  # token前缀
+  token-prefix: Bearer
+  # jwt秘钥
+  jwt-secret-key: sa-secret-key1234567890123456789012345678901234567890
+  # 是否打印banner
+  is-print: false
+
+# 自研WebSocket框架配置
+websocket:
+  # 实例配置
+  instance:
+    ip: 192.168.8.109  # 显式指定本机实例IP，用于分布式会话注册和跨实例消息推送
+    port: 8086          # 显式指定本机实例端口，用于与Nacos注册实例匹配和S2S连接
+    count: 1 # 实例总数,涉及到容器启动的无状态,要保证消息继续消费,不因为ip的变化导致消息无人消费导致积压
+  # 分布式配置
+  distributed:
+    enabled: true                    # 是否启用分布式功能
+    # 服务器间通信协议配置（可插拔设计）
+    server-comm:
+      enabled: true                  # 是否启用服务器间通信，单聊模式下必须要开启的
+      protocol: websocket            # 通信协议：websocket 或 http2
+      websocket:
+        handshake-timeout: 5000      # WebSocket握手超时时间（毫秒）
+        heartbeat-interval: 30000   # 心跳间隔（毫秒）
+        heartbeat-timeout: 10000    # 心跳超时（毫秒）
+        retry: 3                     # 最大重试次数
+      http2:
+        connect-timeout: 3000       # HTTP/2连接超时时间（毫秒）
+        request-timeout: 5000       # HTTP/2请求超时时间（毫秒）
+        retry: 5                     # 最大重试次数
+        endpoint: /server/push      # HTTP/2推送端点
+    
+    # 通知重试配置
+    notification-retry:
+      enabled: true                  # 是否启用通知重试
+      max-retries: 10               # 最大重试次数
+      retry-interval: 1000          # 重试间隔（毫秒）
+      max-retry-interval: 30000    # 最大重试间隔（毫秒）
+      backoff-multiplier: 2.0      # 退避乘数
+      infinite-retry: true          # 是否无限重试
+      session-change-retry: true    # 会话变化时是否重试
+

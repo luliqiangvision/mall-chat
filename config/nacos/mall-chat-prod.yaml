@@ -1,0 +1,25 @@
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: redis # Redis服务器地址
+      database: 0 # Redis数据库索引（默认为0）
+      port: 6379 # Redis服务器连接端口
+      password: #不设置密码
+  rocketmq:
+    name-server: rocketmq:9876
+    producer:
+      group: mall-chat-producer
+      send-message-timeout: 3000
+      retry-times-when-send-failed: 2
+logging:
+  file:
+    path: /var/logs
+  level:
+    root: info
+    com.macro.mall.chat: info
+logstash:
+  host: logstash
+server:
+  shutdown: graceful

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mall-chat-deployment
+  namespace: default
+  labels:
+    app: mall-chat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mall-chat
+  template:
+    metadata:
+      labels:
+        app: mall-chat
+    spec:
+      containers:
+        - name: mall-chat
+          image: mall/mall-chat:1.0-SNAPSHOT
+          ports:
+            - containerPort: 8085
+          env:
+            # 指定环境
+            - name: spring.profiles.active
+              value: prod
+            # 指定时区
+            - name: TZ
+              value: Asia/Shanghai
+            # 指定Nacos地址
+            - name: spring.cloud.nacos.discovery.server-addr
+              value: http://192.168.3.101:8848
+            - name: spring.cloud.nacos.config.server-addr
+              value: http://192.168.3.101:8848
+          volumeMounts:
+            - mountPath: /var/logs
+              name: log-volume
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: log-volume
+          hostPath:
+            path: /mydata/app/mall-chat/logs
+            type: DirectoryOrCreate

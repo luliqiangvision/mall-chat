@@ -1,0 +1,20 @@
+spring:
+  data:
+    redis:
+      host: 192.168.8.109 # Redis服务器地址
+      database: 0 # Redis数据库索引（默认为0）
+      port: 6379 # Redis服务器连接端口
+      password: # Redis服务器连接密码（默认为空）
+      timeout: 3000ms # 连接超时时间（毫秒）
+  rocketmq:
+    name-server: 192.168.8.109:9876
+    producer:
+      group: mall-chat-producer
+      send-message-timeout: 3000
+      retry-times-when-send-failed: 2
+logging:
+  level:
+    root: info
+    com.macro.mall.chat: debug
+logstash:
+  host: 192.168.8.109

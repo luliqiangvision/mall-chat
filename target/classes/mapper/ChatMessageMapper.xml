@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.treasurehunt.chat.mapper.ChatMessageMapper">
+
+    <resultMap id="ChatMessageResultMap" type="com.treasurehunt.chat.domain.ChatMessageDO">
+        <id property="id" column="id"/>
+        <result property="conversationId" column="conversation_id"/>
+        <result property="serverMsgId" column="server_msg_id"/>
+        <result property="clientMsgId" column="client_msg_id"/>
+        <result property="senderId" column="sender_id"/>
+        <result property="fromUserId" column="from_user_id"/>
+        <result property="msgType" column="msg_type"/>
+        <result property="content" column="content"/>
+        <result property="payloadJson" column="payload_json"/>
+        <result property="hashCode" column="hash_code"/>
+        <result property="status" column="status"/>
+        <result property="pushAttempts" column="push_attempts"/>
+        <result property="shopId" column="shop_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="deliveredAt" column="delivered_at"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+    </sql>
+
+    <insert id="insertOne" parameterType="com.treasurehunt.chat.domain.ChatMessageDO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chat_message(
+            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+        ) VALUES (
+            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
+        )
+    </insert>
+
+    <!-- 降级路径：若 (conversation_id, client_msg_id) 唯一键冲突，则把 server_msg_id 自增 1（牺牲幂等性） -->
+    <insert id="insertOneOnDupIncr" parameterType="com.treasurehunt.chat.domain.ChatMessageDO">
+        INSERT INTO chat_message(
+            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+        ) VALUES (
+            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
+        )
+        ON DUPLICATE KEY UPDATE
+            server_msg_id = server_msg_id + 1,
+            content = VALUES(content),
+            payload_json = VALUES(payload_json),
+            status = VALUES(status)
+    </insert>
+
+    <select id="selectByConversationId" resultMap="ChatMessageResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM chat_message
+        WHERE conversation_id = #{conversationId}
+        ORDER BY server_msg_id ASC
+    </select>
+
+    <delete id="deleteByConversationId">
+        DELETE FROM chat_message WHERE conversation_id = #{conversationId}
+    </delete>
+
+    <!-- 查询会话内最大 server_msg_id 用于 Redis 懒初始化 -->
+    <select id="getMaxServerMsgIdByConvId" parameterType="java.lang.String" resultType="java.lang.Long">
+        SELECT MAX(server_msg_id)
+        FROM chat_message
+        WHERE conversation_id = #{conversationId}
+    </select>
+
+    <!-- 按 (conversation_id, client_msg_id) 精确查一条 -->
+    <select id="selectByConvIdAndClientMsgId" resultMap="ChatMessageResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM chat_message
+        WHERE conversation_id = #{conversationId}
+          AND client_msg_id = #{clientMsgId}
+        LIMIT 1
+    </select>
+
+</mapper>
+
+
