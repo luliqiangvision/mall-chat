@@ -114,7 +114,7 @@ INSERT INTO mall_shop (tenant_id, shop_name, shop_status, shop_icon, contact_pho
 -- 密码均为: 123456 (BCrypt加密后的值，实际使用时需要根据BCrypt加密算法生成)
 -- 注意：这里使用示例密码哈希值，实际部署时需要替换为真实的BCrypt加密密码
 INSERT INTO chat_agent (agent_id, agent_name, password, agent_type, status, max_concurrent_conversations, tenant_id) VALUES
-('agent001', '张三', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOslitxEfB7Xi', 'pre-sales', 'active', 10, 1)
+('1', '张三', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOslitxEfB7Xi', 'pre-sales', 'active', 10, 1)
 
 -- =============================================
 -- 索引说明

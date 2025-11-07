@@ -33,6 +33,9 @@
         <spring-cloud-alibaba-nacos-discovery.version>2023.0.1.0</spring-cloud-alibaba-nacos-discovery.version>
         <lettuce.version>6.3.2.RELEASE</lettuce.version>
         <logstash-logback.version>5.3</logstash-logback.version>
+        <!-- Docker 相关配置 -->
+        <docker.host>http://127.0.0.1:2375</docker.host>
+        <docker.maven.plugin.version>0.43.3</docker.maven.plugin.version>
     </properties>
 
     <!-- Align core dependency versions without parent via BOM imports -->
@@ -191,6 +194,53 @@
             <plugin>
                 <groupId>io.fabric8</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
+                <version>${docker.maven.plugin.version}</version>
+                <executions>
+                    <!--如果想在项目打包时构建镜像添加-->
+                    <execution>
+                        <id>build-image</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- Docker 远程管理地址-->
+                    <dockerHost>${docker.host}</dockerHost>
+                    <images>
+                        <image>
+                            <!--定义镜像名称-->
+                            <name>mall/${project.name}:${project.version}</name>
+                            <!--定义镜像构建行为-->
+                            <build>
+                                <!--定义基础镜像-->
+                                <from>openjdk:17</from>
+                                <args>
+                                    <JAR_FILE>${project.build.finalName}.jar</JAR_FILE>
+                                </args>
+                                <!--定义哪些文件拷贝到容器中-->
+                                <assembly>
+                                    <!--定义拷贝到容器的目录-->
+                                    <targetDir>/</targetDir>
+                                    <!--只拷贝生成的jar包-->
+                                    <descriptorRef>artifact</descriptorRef>
+                                </assembly>
+                                <!--定义容器启动命令-->
+                                <entryPoint>
+                                    <exec>
+                                        <arg>java</arg>
+                                        <arg>-jar</arg>
+                                        <!-- <arg>-Dspring.profiles.active=dev</arg> -->
+                                        <arg>/${project.build.finalName}.jar</arg>
+                                    </exec>
+                                </entryPoint>
+                                <!--定义维护者-->
+                                <maintainer>treasurehuntshop</maintainer>
+                            </build>
+                        </image>
+                    </images>
+                </configuration>
             </plugin>
         </plugins>
     </build>
