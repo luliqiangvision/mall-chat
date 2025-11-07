@@ -1,0 +1,22 @@
+#这是给开发人员执行的,前提是开发人员的电脑运行docker或者dockerdesktop
+# 自行跟其他后台以及内网穿透的compose.yaml文件合并在一起,这样在同一个容器下面,网络就不需要管了,预生产和生产走k8s,k8s自己负责分配ip和内网之间跨服务pod可以调通
+# 整体上分为两个部分,基础设置和后端compose,因为基础设施基本都是后台通过nacos的配置去连接的,不是基础设施自己主动发送请求,所以不需要跟后台在一起
+version: '4'
+services:
+  mall-chat:
+    image: mall/mall-chat:1.0-SNAPSHOT
+    container_name: mall-chat
+    ports:
+      - 8086:8086
+    volumes:
+      # 日志目录挂载
+      - /mydata/app/mall-chat/logs:/var/logs
+    environment:
+      - TZ=Asia/Shanghai
+      - SPRING_PROFILES_ACTIVE=${profiles}
+    external_links:
+      - mysql:db #可以用db这个域名访问mysql服务
+      - redis:redis #可以用redis这个域名访问redis服务
+      - nacos-registry:nacos-registry #可以用nacos-registry这个域名访问nacos服务
+      - rocketmq-namesrv:namesrv #可以用namesrv这个域名访问RocketMQ NameServer
+      - rocketmq-broker:broker #可以用broker这个域名访问RocketMQ Broker
