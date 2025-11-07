@@ -274,8 +274,7 @@ public class AgentServiceChatService {
                     long clientMax = item.getClientMaxServerMsgId() == null ? 0L : item.getClientMaxServerMsgId();
                     
                     Long latest = latestServerMsgIdMap.get(item.getConversationId());
-                    // 开发期间,临时排除心跳的干扰
-                    latest=null;
+
                     if (latest == null) {
                         latest = 0L; // 该会话无消息
                     }
