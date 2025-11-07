@@ -1,0 +1,9 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: http://xxxx:8848
+        ip: xxxx
+      config:
+        server-addr: http://xxxxx:8848
+        file-extension: yaml
