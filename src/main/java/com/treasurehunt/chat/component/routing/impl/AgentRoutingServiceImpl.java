@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 客服路由业务实现（群聊模式）
@@ -55,7 +54,7 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	public RouteResult assignAgents(String conversationId, boolean isNewConversation) {
 		if (conversationId == null || conversationId.isEmpty()) {
 			log.warn("conversationId is null/empty");
-			return new RouteResult(Collections.emptySet(), false);
+			return new RouteResult(null, false);
 		}
 
 		// 场景1：新会话创建
@@ -68,26 +67,28 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	}
 
 	/**
-	 * 场景1：新聊天窗口创建 - 分配给售前客服
+	 * 场景1：新聊天窗口创建 - 分配给售前客服（只分配一个）
 	 */
 	private RouteResult assignPreSalesAgentsWithFallback(String conversationId) {
 		log.info("场景1：新会话创建，分配给售前客服: conversationId={}", conversationId);
 		
-		// 1. 获取售前客服
-		Set<String> preSalesAgentIds = getPreSalesAgentIds();
+		// 1. 获取负载最低的售前客服（只分配一个）
+		Long tenantId = 1L; // 默认使用租户ID为1，实际项目中可以从上下文获取
+		String preSalesAgentId = agentManagementService.getLeastLoadedPreSalesAgent(tenantId);
+		
 		// 这里是防御式编程,一般肯定是有首先客服的账号的
-		if (preSalesAgentIds.isEmpty()) {
+		if (preSalesAgentId == null || preSalesAgentId.isEmpty()) {
 			log.warn("没有售前客服，直接给机器人: conversationId={}", conversationId);
-			return new RouteResult(Collections.emptySet(), false);
+			return new RouteResult(null, false);
 		}
 		
-		// 2. 绑定售前客服到聊天窗口
-		chatWindowManager.bindAgents(conversationId, new ArrayList<>(preSalesAgentIds));
+		// 2. 绑定售前客服到聊天窗口（只绑定一个）
+		chatWindowManager.bindAgents(conversationId, Collections.singletonList(preSalesAgentId));
 		
-		log.info("场景1：已绑定售前客服: conversationId={}, agentIds={}", conversationId, preSalesAgentIds);
+		log.info("场景1：已绑定售前客服: conversationId={}, agentId={}", conversationId, preSalesAgentId);
 		
-		// 3. 返回售前客服列表（不管是否在线，都推送给售前客服，同时抄送给机器人）
-		return new RouteResult(preSalesAgentIds, true);
+		// 3. 返回售前客服（不管是否在线，都推送给售前客服，同时抄送给机器人）
+		return new RouteResult(preSalesAgentId, true);
 	}
 
 	/**
@@ -103,46 +104,19 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 		List<ChatConversationMemberDO> members = conversationMemberMapper.selectList(memberQuery);
 		
 		if (!members.isEmpty()) {
-			// 场景2：客服还在群里，推送给群成员
-			Set<String> existingAgentIds = members.stream()
-					.map(ChatConversationMemberDO::getMemberId)
-					.collect(Collectors.toSet());
+			// 场景2：客服还在群里，取第一个客服ID（只返回一个）
+			String firstAgentId = members.get(0).getMemberId();
 			
-			log.info("场景2：客服还在群里，推送给群成员: conversationId={}, agentIds={}", conversationId, existingAgentIds);
+			log.info("场景2：客服还在群里，推送给群成员: conversationId={}, agentId={}", conversationId, firstAgentId);
 			
-			// 推送给所有现有客服（不管是否在线，都推送给现有客服，同时抄送给机器人）
-			return new RouteResult(existingAgentIds, true);
+			// 返回第一个客服ID（不管是否在线，都推送给现有客服，同时抄送给机器人）
+			return new RouteResult(firstAgentId, true);
 		}
 		
 		// 场景3：所有客服都退群了，分配给售前客服
 		log.info("场景3：所有客服都退群了，分配给售前客服: conversationId={}", conversationId);
 		return assignPreSalesAgentsWithFallback(conversationId);
 	}
-
-	/**
-	 * 获取售前客服ID列表
-	 * 从客服管理服务查询活跃的售前客服
-	 */
-	private Set<String> getPreSalesAgentIds() {
-		try {
-			// 默认使用租户ID为1，实际项目中可以从上下文获取
-			Long tenantId = 1L;
-			Set<String> agentIds = agentManagementService.getPreSalesAgentIds(tenantId);
-			
-			if (agentIds.isEmpty()) {
-				log.warn("没有找到活跃的售前客服: tenantId={}", tenantId);
-			} else {
-				log.debug("查询到售前客服: tenantId={}, agentIds={}", tenantId, agentIds);
-			}
-			
-			return agentIds;
-			
-		} catch (Exception e) {
-			log.error("查询售前客服失败", e);
-			return Collections.emptySet();
-		}
-	}
-
 
 	/**
 	 * 指派首个客服到会话（抢占式首绑）

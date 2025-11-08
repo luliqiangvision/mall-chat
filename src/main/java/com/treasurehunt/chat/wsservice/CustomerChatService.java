@@ -462,13 +462,19 @@ public class CustomerChatService {
         Set<String> memberIds = members.stream().map(ChatConversationMemberDO::getMemberId).collect(Collectors.toSet());
         if (members.isEmpty()) {
             log.debug("🎯 开始分配客服: conversationId={}, customerId={}", conversationId, customerId);
-            memberIds = agentRoutingService.assignAgents(conversationId, false).agentIds;
+            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false).agentId;
+            if (assignedAgentId != null) {
+                memberIds = Collections.singleton(assignedAgentId);
+            }
         }
         // 如果群里只剩下客户自己和机器人,就重新分配客服
         Boolean isOnlyCustomerAndRobot = members.size() == 2 && members.stream().anyMatch(m -> m.getMemberId().equals(customerId)) && members.stream().anyMatch(m -> m.getMemberType().equals("robot_agent"));
         if (isOnlyCustomerAndRobot) {
             log.debug("🎯 群里只剩下客户自己和机器人,重新分配客服: conversationId={}", conversationId);
-            memberIds = agentRoutingService.assignAgents(conversationId, false).agentIds;
+            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false).agentId;
+            if (assignedAgentId != null) {
+                memberIds = Collections.singleton(assignedAgentId);
+            }
         }
         log.debug("🎯 客服分配结果: conversationId={}, memberIds={}", conversationId, memberIds);
         log.debug("📤 推送消息给客服: conversationId={}, serverMsgId={}", conversationId, serverMsgId);
@@ -512,7 +518,7 @@ public class CustomerChatService {
         log.debug("👤 获取到用户信息: conversationId={}, userId={}", conversationId, userInfo.getUserId());
         log.debug("🎯 开始分配客服: conversationId={}", conversationId);
         RouteResult routeResult = agentRoutingService.assignAgents(conversationId, true);
-        log.debug("🎯 客服分配结果: conversationId={}, agentIds={}", conversationId, routeResult.agentIds);
+        log.debug("🎯 客服分配结果: conversationId={}, agentId={}", conversationId, routeResult.agentId);
         // 创建会话记录
         log.debug("📝 准备创建会话记录: conversationId={}, customerId={}, shopId={}", conversationId, userInfo.getUserId(),shopId);
         ChatConversationDO conversation = new ChatConversationDO();
@@ -521,7 +527,7 @@ public class CustomerChatService {
         conversation.setStatus(ConversationStatusEnum.WAITING.getCode());
         conversation.setTenantId(1L); // 默认租户
         conversation.setShopId(shopId);
-        conversation.setAgentIds(routeResult.agentIds);
+        conversation.setAgentId(routeResult.agentId);
         conversation.setCreatedAt(new Date());
         conversation.setUpdatedAt(new Date());
         try {
@@ -533,7 +539,10 @@ public class CustomerChatService {
             return;
         }
         // 创建群聊成员记录（批量添加客户和客服）
-        List<ChatConversationMemberDO> members = Conver.toGroupMembers(routeResult.agentIds, conversationId,"agent");
+        List<ChatConversationMemberDO> members = new ArrayList<>();
+        if (routeResult.agentId != null) {
+            members.addAll(Conver.toGroupMembers(Collections.singletonList(routeResult.agentId), conversationId, "agent"));
+        }
         members.addAll(Conver.toGroupMembers(Collections.singletonList(userInfo.getUserId()), conversationId, "customer"));
         // 把机器人也加进去,暂定它的id为666666
         members.addAll(Conver.toGroupMembers(Collections.singletonList("666666"), conversationId, "robot_agent"));
@@ -544,7 +553,8 @@ public class CustomerChatService {
         
         log.debug("📤 推送消息给客服: conversationId={}, serverMsgId={}", conversationId, serverMsgId);
         // 新会话创建：使用统一的消息分发接口
-        notificationDispatcher.dispatch(conversationId, serverMsgId, userInfo.getUserId(), routeResult.agentIds);
+        Set<String> agentIdsForDispatch = routeResult.agentId != null ? Collections.singleton(routeResult.agentId) : Collections.emptySet();
+        notificationDispatcher.dispatch(conversationId, serverMsgId, userInfo.getUserId(), agentIdsForDispatch);
         // 同时抄送给机器人
         log.debug("🤖 同时抄送给机器人: conversationId={}", conversationId);
         robotAgentService.sendAutoReplyMessage(conversationId, serverMsgId, userInfo.getUserId(), shopId);

@@ -7,7 +7,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.util.Date;
-import java.util.Set;
 
 @Data
 @TableName("chat_conversation")
@@ -25,9 +24,9 @@ public class ChatConversationDO {
     @TableField("customer_id")
     private String customerId;
 
-    /** 分配的客服座席ID（可为空，未分配时为null） */
+    /** 分配的客服座席ID（单个售前客服，可为空，未分配时为null） */
     @TableField("agent_id")
-    private Set<String> agentIds;
+    private String agentId;
 
     /** 
      * 会话状态：

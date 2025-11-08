@@ -1,7 +1,5 @@
 package com.treasurehunt.chat.component.routing;
 
-import java.util.Set;
-
 /**
  * 智能客服路由服务（群聊模式）
  * 
@@ -14,7 +12,7 @@ public interface AgentRoutingService {
 	 * 分配客服人员（客户->客服方向）
 	 * @param conversationId 聊天窗口ID  
 	 * @param isNewConversation 是否为新聊天窗口
-	 * @return 该聊天窗口的客服session列表
+	 * @return 该聊天窗口的客服ID
 	 */
 	RouteResult assignAgents(String conversationId, boolean isNewConversation);
 	/**
@@ -25,15 +23,15 @@ public interface AgentRoutingService {
 	 */
 	boolean bindFirstAgent(String conversationId, String agentId);
 	/**
-	 * 路由结果（群聊模式：多客服）
-	 * - agentId → 第一个客服ID（兼容性字段）
-	 * - targetSessionIds → 所有在线客服的 sessionId 列表
+	 * 路由结果（只分配一个售前客服）
+	 * - agentId → 分配的客服ID（可为null，表示没有客服）
+	 * - hasOnlineAgent → 是否有在线客服（人类）
 	 */
 	class RouteResult {
-		public final Set<String> agentIds;
+		public final String agentId;
 		public final boolean hasOnlineAgent; // 是否有在线客服（人类）
-		public RouteResult(Set<String> agentIds, boolean hasOnlineAgent) {
-			this.agentIds = agentIds;
+		public RouteResult(String agentId, boolean hasOnlineAgent) {
+			this.agentId = agentId;
 			this.hasOnlineAgent = hasOnlineAgent;
 		}
 	}
