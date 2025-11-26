@@ -2,6 +2,10 @@
 -- Mall Chat 数据库初始化脚本
 -- =============================================
 
+-- 设置字符集为 utf8mb4
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 -- 1. 聊天会话表
 CREATE TABLE chat_conversation (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -17,7 +21,7 @@ CREATE TABLE chat_conversation (
   UNIQUE KEY uk_customer_shop (customer_id, shop_id),
   UNIQUE KEY uk_agentid_conversation_id (agent_id, conversation_id),
   INDEX idx_customer_shop_status (customer_id, shop_id,status)
-) ENGINE=InnoDB COMMENT='聊天会话表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天会话表';
 
 -- 2. 会话成员表（群聊模式）
 CREATE TABLE chat_conversation_member (
@@ -30,7 +34,7 @@ CREATE TABLE chat_conversation_member (
   INDEX idx_conversation_member (conversation_id, member_type),
   INDEX idx_member_active (member_id, left_at),
   UNIQUE KEY uq_conversation_member_active (conversation_id, member_type, member_id, left_at)
-) ENGINE=InnoDB COMMENT='会话成员表（群聊模式）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='会话成员表（群聊模式）';
 
 -- 3. 聊天消息表
 CREATE TABLE chat_message (
@@ -55,7 +59,7 @@ CREATE TABLE chat_message (
   INDEX idx_shop_id (shop_id),
   UNIQUE KEY uq_conv_client (conversation_id, client_msg_id),
   UNIQUE KEY uq_conv_server (conversation_id, server_msg_id)
-) ENGINE=InnoDB COMMENT='聊天消息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天消息表';
 
 -- 4. 用户会话已读指针表
 CREATE TABLE user_conversation_read (
@@ -67,7 +71,7 @@ CREATE TABLE user_conversation_read (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_conversation_read_user_conv (user_id, conversation_id),
   UNIQUE KEY uk_agent_conversation (agent_id, conversation_id)
-) ENGINE=InnoDB COMMENT='用户会话已读指针表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户会话已读指针表';
 
 -- 5. 客服信息表
 CREATE TABLE chat_agent (
@@ -85,7 +89,7 @@ CREATE TABLE chat_agent (
   INDEX idx_tenant_type_status (tenant_id, agent_type, status),
   INDEX idx_agent_status (agent_id, status),
   INDEX idx_type_status (agent_type, status)
-) ENGINE=InnoDB COMMENT='客服信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='客服信息表';
 
 -- 6. 店铺信息表
 CREATE TABLE mall_shop (
@@ -98,7 +102,7 @@ CREATE TABLE mall_shop (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_tenant_status (tenant_id, shop_status)
-) ENGINE=InnoDB COMMENT='店铺信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='店铺信息表';
 
 -- =============================================
 -- 示例数据
