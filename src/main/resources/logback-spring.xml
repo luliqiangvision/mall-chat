@@ -19,7 +19,7 @@
     <!-- 控制台输出：按级别整行着色（ERROR 红 / WARN 黄 / INFO 绿 / DEBUG 青） -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level %logger{36} - %msg)%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level %logger{36} - %msg%n)</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
