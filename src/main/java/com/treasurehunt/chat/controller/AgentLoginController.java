@@ -46,15 +46,15 @@ public class AgentLoginController {
         try {
             SaTokenInfo saTokenInfo = agentLoginService.login(request);
             if (saTokenInfo == null) {
-                return CommonResult.validateFailed("用户名或密码错误");
+                return CommonResult.buildError("用户名或密码错误");
             }
             Map<String, String> tokenMap = new HashMap<>();
             tokenMap.put("token", saTokenInfo.getTokenValue());
             tokenMap.put("tokenHead", tokenHead + " ");
-            return CommonResult.success(tokenMap);
+            return CommonResult.buildSuccess(tokenMap);
         } catch (Exception e) {
             log.error("处理客服登录失败: agentName={}", request.getAgentName(), e);
-            return CommonResult.failed(e.getMessage());
+            return CommonResult.buildError(e.getMessage());
         }
     }
 
@@ -72,10 +72,10 @@ public class AgentLoginController {
         
         try {
             agentLoginService.logout();
-            return CommonResult.success(null);
+            return CommonResult.buildSuccess();
         } catch (Exception e) {
             log.error("处理客服登出失败", e);
-            return CommonResult.failed("登出失败: " + e.getMessage());
+            return CommonResult.buildError("登出失败: " + e.getMessage());
         }
     }
 
@@ -108,10 +108,10 @@ public class AgentLoginController {
             }
             data.put("roles", roles);
             
-            return CommonResult.success(data);
+            return CommonResult.buildSuccess(data);
         } catch (Exception e) {
             log.error("获取当前登录客服信息失败", e);
-            return CommonResult.failed("获取客服信息失败: " + e.getMessage());
+            return CommonResult.buildError("获取客服信息失败: " + e.getMessage());
         }
     }
 }

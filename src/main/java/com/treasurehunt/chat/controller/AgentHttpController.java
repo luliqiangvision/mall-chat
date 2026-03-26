@@ -32,7 +32,7 @@ public class AgentHttpController {
         
         try {
             ActiveConversations response = agentHttpService.getConversations(request.getAgentId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服获取会话列表失败: agentId={}", request.getAgentId(), e);
             throw new RuntimeException("获取会话列表失败", e);
@@ -51,7 +51,7 @@ public class AgentHttpController {
         
         try {
             GetUnassignedConversationsResult response = agentHttpService.getUnassignedConversations(request.getAgentId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服获取待分配会话列表失败: agentId={}", request.getAgentId(), e);
             throw new RuntimeException("获取待分配会话列表失败", e);
@@ -70,7 +70,7 @@ public class AgentHttpController {
         
         try {
             JoinConversationResult response = agentHttpService.grapConversation(request, request.getAgentId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服加入会话失败: agentId={}", request.getAgentId(), e);
             throw new RuntimeException("加入会话失败", e);
@@ -89,7 +89,7 @@ public class AgentHttpController {
         
         try {
             ChatmessageWithPaged response = agentHttpService.pullMessageWithPagedQuery(request, request.getAgentId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服分页拉取消息失败: agentId={}", request.getAgentId(), e);
             throw new RuntimeException("分页拉取消息失败", e);
@@ -108,7 +108,7 @@ public class AgentHttpController {
         
         try {
             String response = agentHttpService.deleteConversation(request.getConversationId(), request.getAgentId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服删除会话失败: agentId={}, conversationId={}", request.getAgentId(), request.getConversationId(), e);
             throw new RuntimeException("删除会话失败", e);
@@ -127,7 +127,7 @@ public class AgentHttpController {
         
         try {
             Map<String, ConversationViewVO> response = agentHttpService.getChatWindowList(request.getUserId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服获取聊天窗口列表失败: agentId={}", request.getUserId(), e);
             throw new RuntimeException("获取聊天窗口列表失败", e);
@@ -147,7 +147,7 @@ public class AgentHttpController {
         
         try {
             CheckMissingMessagesResponse response = agentHttpService.checkMissingMessages(request, agentId);
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服检查缺失消息失败: agentId={}", agentId, e);
             throw new RuntimeException("检查缺失消息失败", e);
@@ -167,7 +167,7 @@ public class AgentHttpController {
         
         try {
             boolean result = agentHttpService.markAsRead(request, agentId);
-            return CommonResult.success(result);
+            return CommonResult.buildSuccess(result);
         } catch (Exception e) {
             log.error("处理客服标记已读失败: agentId={}", agentId, e);
             throw new RuntimeException("标记已读失败", e);

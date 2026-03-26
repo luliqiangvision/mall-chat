@@ -45,7 +45,7 @@ public class CustomerHpptController {
         
         try {
             CheckUnreadMessagesResponse response = customerHttpService.checkUnreadMessages(request.getUserId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客户检查未读消息失败: userId={}", request.getUserId(), e);
             throw new RuntimeException("检查未读消息失败", e);
@@ -64,7 +64,7 @@ public class CustomerHpptController {
         
         try {
             CheckUnreadMessagesResponse response = customerHttpService.checkUnreadMessages(request.getUserId());
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客户获取会话列表失败: userId={}", request.getUserId(), e);
             throw new RuntimeException("获取会话列表失败", e);
@@ -83,7 +83,7 @@ public class CustomerHpptController {
         
         try {
             Map<String, ConversationViewVO> response = customerHttpService.getChatWindowList(Long.valueOf(request.getUserId()));
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客户获取聊天窗口列表失败: userId={}", request.getUserId(), e);
             throw new RuntimeException("获取聊天窗口列表失败", e);
@@ -100,7 +100,7 @@ public class CustomerHpptController {
     @PostMapping("/check")
     public CommonResult<ConversationCheckResponse> checkConversation(@RequestBody ConversationCheckRequest request) {
         log.debug("收到会话预检请求: {}", request);
-        return CommonResult.success(conversationService.checkConversation(request));
+        return CommonResult.buildSuccess(conversationService.checkConversation(request));
     }
 
     /**
@@ -115,7 +115,7 @@ public class CustomerHpptController {
         
         try {
             ChatmessageWithPaged response = customerHttpService.pullMessageWithPagedQuery(request, Long.valueOf(userId));
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客户分页拉取消息失败: userId={}", userId, e);
             throw new RuntimeException("分页拉取消息失败", e);
@@ -132,7 +132,7 @@ public class CustomerHpptController {
         log.debug("根据conversationId初始化聊天窗口: userId={}, conversationId={}", userId, conversationId);
         try {
             ChatMessagesInitResult resp = customerHttpService.initChatWindowByConversationId(conversationId, Long.valueOf(userId));
-            return CommonResult.success(resp);
+            return CommonResult.buildSuccess(resp);
         } catch (Exception e) {
             log.error("根据conversationId初始化聊天窗口失败: userId={}, conversationId={}", userId, conversationId, e);
             throw new RuntimeException("根据conversationId初始化聊天窗口失败", e);
@@ -152,7 +152,7 @@ public class CustomerHpptController {
         
         try {
             CheckMissingMessagesResponse response = customerHttpService.checkMissingMessages(request, Long.valueOf(userId));
-            return CommonResult.success(response);
+            return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客户检查缺失消息失败: userId={}", userId, e);
             throw new RuntimeException("检查缺失消息失败", e);
@@ -172,7 +172,7 @@ public class CustomerHpptController {
         
         try {
             boolean result = customerHttpService.markAsRead(request, Long.valueOf(userId));
-            return CommonResult.success(result);
+            return CommonResult.buildSuccess(result);
         } catch (Exception e) {
             log.error("处理客户标记已读失败: userId={}", userId, e);
             throw new RuntimeException("标记已读失败", e);
