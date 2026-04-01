@@ -7,6 +7,7 @@ import com.treasurehunt.chat.component.manager.MessageIdManager;
 import com.treasurehunt.chat.domain.ChatMessageDO;
 import com.treasurehunt.chat.domain.ChatConversationDO;
 import com.treasurehunt.chat.domain.UserConversationReadDO;
+import com.treasurehunt.chat.enums.ChatErrorCodeEnum;
 import com.treasurehunt.chat.enums.ConversationStatusEnum;
 import com.treasurehunt.chat.framework.core.websocket.distributed.delivery.NotificationDispatcher;
 import com.treasurehunt.chat.mapper.ChatMessageMapper;
@@ -27,8 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
 
 import com.treasurehunt.chat.component.async.ChatAsyncExecutor;
-import com.treasurehuntshop.mall.common.exception.ApiException;
-import com.treasurehuntshop.mall.common.enums.BusinessErrorCodeEnum;
+import com.treasurehuntshop.mall.common.exception.BaseBizException;
 
 
 import lombok.extern.slf4j.Slf4j;
@@ -328,8 +328,7 @@ public class AgentServiceChatService {
             }
         } catch (Exception e) {
             log.error("批量查询数据库失败: conversationIds={}", conversationIds, e);
-            // 数据库查询失败，使用业务异常枚举
-            throw new ApiException(BusinessErrorCodeEnum.CHAT_BATCH_QUERY_MSG_ID_FAILED.getErrorMsg());
+            throw new BaseBizException(ChatErrorCodeEnum.CHAT_BATCH_QUERY_MSG_ID_FAILED);
         }
         
         return result;
