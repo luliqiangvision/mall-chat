@@ -16,19 +16,29 @@ import java.util.Date;
 @TableName("mall_shop")
 public class MallShopDO {
 
-    /** 自增主键 */
-    @TableId(type = IdType.AUTO)
+    /** 技术主键（自增，ORM 主键） */
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 店铺业务ID（与前端 shopId 一致，库内唯一；业务上以此标识店铺，非自增主键 id）
+     */
+    @TableField("shop_id")
+    private Long shopId;
 
     /** 租户ID（所属商户） */
     @TableField("tenant_id")
     private Long tenantId;
 
+    /** 业务线标识（由网关透传 X-Business-Line） */
+    @TableField("business_line")
+    private String businessLine;
+
     /** 店铺名称 */
     @TableField("shop_name")
     private String shopName;
 
-    /** 
+    /**
      * 店铺状态：
      * - active: 活跃
      * - inactive: 禁用
@@ -52,4 +62,3 @@ public class MallShopDO {
     @TableField("updated_at")
     private Date updatedAt;
 }
-

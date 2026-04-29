@@ -45,6 +45,14 @@ public final class Conver {
         if (chatMessage.getFromUserId() != null) {
             builder.fromUserId(chatMessage.getFromUserId());
         }
+        String resolvedFromUserNo = firstNonBlank(chatMessage.getFromUserNo(), chatMessage.getUserNo());
+        if (resolvedFromUserNo != null) {
+            builder.fromUserNo(resolvedFromUserNo);
+        }
+        String resolvedSenderNo = firstNonBlank(chatMessage.getSenderNo(), chatMessage.getUserNo());
+        if (resolvedSenderNo != null) {
+            builder.senderNo(resolvedSenderNo);
+        }
         if (chatMessage.getSenderId() != null) {
             builder.senderId(chatMessage.getSenderId());
         }
@@ -90,6 +98,9 @@ public final class Conver {
         message.setServerMsgId(messageDO.getServerMsgId());
         message.setClientMsgId(messageDO.getClientMsgId());
         message.setFromUserId(messageDO.getFromUserId());
+        message.setFromUserNo(messageDO.getFromUserNo());
+        message.setSenderNo(messageDO.getSenderNo());
+        message.setUserNo(firstNonBlank(messageDO.getFromUserNo(), messageDO.getSenderNo()));
         message.setSenderId(messageDO.getSenderId());
         message.setType(messageDO.getMsgType());
         message.setContent(messageDO.getContent());
@@ -156,7 +167,7 @@ public final class Conver {
         }
         
         return MallShopVO.builder()
-                .id(shopDO.getId())
+                .shopId(shopDO.getShopId())
                 .tenantId(shopDO.getTenantId())
                 .shopName(shopDO.getShopName())
                 .shopStatus(shopDO.getShopStatus())
@@ -193,6 +204,18 @@ public final class Conver {
         }
 
         return members;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }
 

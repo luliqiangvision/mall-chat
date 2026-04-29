@@ -36,23 +36,23 @@ public class ConversationService {
      * @param request 预检请求
      * @return 预检响应
      */
-    public ConversationCheckResponse checkConversation(ConversationCheckRequest request) {
+    public ConversationCheckResponse checkConversation(ConversationCheckRequest request, String businessLine) {
         try {
-            log.debug("检查用户会话: userId={}, shopId={}", request.getUserId(), request.getShopId());
+            log.debug("检查用户会话: userId={}, businessLine={}, shopId={}", request.getUserId(), businessLine, request.getShopId());
             
             // 查询店铺信息
-            MallShopDO shop = mallShopService.getShopById(request.getShopId());
+            MallShopDO shop = mallShopService.getShopByBusinessLineAndId(businessLine, request.getShopId());
             
             // 查询用户在指定店铺的最新会话
-            ChatConversationDO conversation = conversationMapper.findLatestByCustomerAndShop(
-                    request.getUserId(), request.getShopId());
+            ChatConversationDO conversation = conversationMapper.findLatestByBusinessLineAndCustomerAndShop(
+                    businessLine, request.getUserId(), request.getShopId());
             
             ConversationCheckResponse response = new ConversationCheckResponse();
             
             // 设置店铺信息
             if (shop != null) {
                 MallShopVO shopVO = MallShopVO.builder()
-                        .id(shop.getId())
+                        .shopId(shop.getShopId())
                         .tenantId(shop.getTenantId())
                         .shopName(shop.getShopName())
                         .shopStatus(shop.getShopStatus())
@@ -82,7 +82,7 @@ public class ConversationService {
             return response;
             
         } catch (Exception e) {
-            log.error("检查会话失败: userId={}, shopId={}", request.getUserId(), request.getShopId(), e);
+            log.error("检查会话失败: userId={}, businessLine={}, shopId={}", request.getUserId(), businessLine, request.getShopId(), e);
             // 出错时返回无会话，让前端正常进入
             ConversationCheckResponse response = new ConversationCheckResponse();
             response.setHasConversation(false);

@@ -91,9 +91,9 @@ CREATE TABLE chat_agent (
   INDEX idx_type_status (agent_type, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='客服信息表';
 
--- 6. 店铺信息表
+-- 6. 店铺信息表（基线：仅自增主键；业务键 shop_id / business_line 见文件末尾 ALTER）
 CREATE TABLE mall_shop (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '店铺主键（自增ID）',
+  id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '技术主键（自增）',
   tenant_id BIGINT NOT NULL COMMENT '租户ID（所属商户）',
   shop_name VARCHAR(128) NOT NULL COMMENT '店铺名称',
   shop_status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '店铺状态：active-活跃,inactive-禁用',
@@ -108,7 +108,7 @@ CREATE TABLE mall_shop (
 -- 示例数据
 -- =============================================
 
--- 插入示例店铺数据
+-- 插入示例店铺数据（shop_id / business_line 由文末 ALTER 回填或默认值补齐）
 INSERT INTO mall_shop (tenant_id, shop_name, shop_status, shop_icon, contact_phone) VALUES
 (1, '旗舰店', 'active', NULL, '13800138000'),
 (1, '北京分店', 'active', NULL, '13800138001'),
@@ -151,7 +151,8 @@ INSERT INTO chat_agent (agent_id, agent_name, password, agent_type, status, max_
 -- - idx_type_status: 支持按客服类型和状态查询
 
 -- mall_shop 表索引：
--- - idx_tenant_status: 支持按租户和状态查询
+-- - PRIMARY KEY(id)：技术主键（自增）
+-- - idx_tenant_status: 基线索引；业务线改造后见文末 ALTER 中 idx_bl_tenant_status_name、uk_shop_id
 
 -- =============================================
 -- 注意事项
@@ -172,4 +173,70 @@ INSERT INTO chat_agent (agent_id, agent_name, password, agent_type, status, max_
 -- 5. 降级处理：使用 MySQL 能力自增 server_msg_id，
 --    即 INSERT ... ON DUPLICATE KEY UPDATE server_msg_id = server_msg_id + 1，
 --    牺牲幂等性；随后再按 (conversation_id, client_msg_id) 查询确认最终 server_msg_id。
+
+-- =============================================
+-- 多业务线改造（增量DDL）
+-- =============================================
+
+-- chat_conversation 增加 business_line，并把核心索引最左前缀调整为业务线
+ALTER TABLE chat_conversation
+  ADD COLUMN business_line VARCHAR(64) NOT NULL DEFAULT 'default' COMMENT '业务线标识（由网关透传 X-Business-Line）' AFTER tenant_id;
+
+ALTER TABLE chat_conversation
+  DROP INDEX idx_tenant_status,
+  DROP INDEX uk_customer_shop,
+  DROP INDEX uk_agentid_conversation_id,
+  DROP INDEX idx_customer_shop_status,
+  ADD INDEX idx_bl_customer_status_updated (business_line, customer_id, status, updated_at),
+  ADD INDEX idx_bl_agent_status_updated (business_line, agent_id, status, updated_at),
+  ADD INDEX idx_bl_status_agent_created (business_line, status, agent_id, created_at),
+  ADD INDEX idx_bl_customer_shop_created (business_line, customer_id, shop_id, created_at),
+  ADD UNIQUE KEY uk_bl_customer_shop (business_line, customer_id, shop_id),
+  ADD UNIQUE KEY uk_bl_agent_conversation (business_line, agent_id, conversation_id);
+
+-- chat_agent 增加 business_line，并把客服池索引最左前缀调整为业务线
+ALTER TABLE chat_agent
+  ADD COLUMN business_line VARCHAR(64) NOT NULL DEFAULT 'default' COMMENT '业务线标识（由网关透传 X-Business-Line）' AFTER tenant_id;
+
+-- 全系统认证改造 阶段1：chat_agent 增加统一身份映射键（不建立唯一约束）
+ALTER TABLE chat_agent
+  ADD COLUMN subject_id BIGINT NULL COMMENT '统一内部主体ID（IAM subject_id）' AFTER agent_id;
+
+ALTER TABLE chat_agent
+  DROP INDEX idx_tenant_type_status,
+  DROP INDEX idx_agent_status,
+  DROP INDEX idx_type_status,
+  ADD INDEX idx_bl_tenant_type_status_load (business_line, tenant_id, agent_type, status, current_conversations),
+  ADD INDEX idx_bl_agent_status (business_line, agent_id, status),
+  ADD INDEX idx_bl_type_status (business_line, agent_type, status),
+  ADD INDEX idx_chat_agent_subject_bl (subject_id, business_line),
+  ADD INDEX idx_chat_agent_subject_bl_type (subject_id, business_line, agent_type);
+
+-- chat_message 增加 from_user_no / sender_no 冗余字段（兼容前端 userId -> userNo 升级），因为消息可能会串，其他的表不需要冗余，每条消息涉及路由（进入哪个聊天窗口，分配给哪个客服），聊天窗口则不涉及路由
+ALTER TABLE chat_message
+  ADD COLUMN from_user_no VARCHAR(64) NULL COMMENT '发送者工号（fromUserNo）冗余字段' AFTER from_user_id,
+  ADD COLUMN sender_no VARCHAR(64) NULL COMMENT '发送者工号（senderNo）冗余字段' AFTER from_user_no;
+
+-- chat_agent 增加 agent_no 字段（预留，可空；当前阶段允许写入 null）
+ALTER TABLE chat_agent
+  ADD COLUMN agent_no VARCHAR(64) NULL COMMENT '客服工号（agentNo）预留字段' AFTER agent_id;
+
+-- =============================================
+-- mall_shop：业务线 + 业务键 shop_id（与前端 shopId），自增 id 仍为技术主键（增量一律放在本文件末尾）
+-- =============================================
+ALTER TABLE mall_shop
+  ADD COLUMN business_line VARCHAR(64) NOT NULL DEFAULT 'default' COMMENT '业务线标识（由网关透传 X-Business-Line）' AFTER tenant_id;
+
+ALTER TABLE mall_shop
+  DROP INDEX idx_tenant_status,
+  ADD INDEX idx_bl_tenant_status_name (business_line, tenant_id, shop_status, shop_name);
+
+ALTER TABLE mall_shop
+  ADD COLUMN shop_id BIGINT NOT NULL COMMENT '店铺业务ID（与前端 shopId 一致）' AFTER id;
+
+UPDATE mall_shop SET shop_id = id;
+
+
+ALTER TABLE mall_shop
+  ADD UNIQUE KEY uk_shop_id (shop_id);
 

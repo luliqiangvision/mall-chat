@@ -4,7 +4,9 @@
 
     <resultMap id="MallShopResultMap" type="com.treasurehunt.chat.domain.MallShopDO">
         <id property="id" column="id"/>
+        <result property="shopId" column="shop_id"/>
         <result property="tenantId" column="tenant_id"/>
+        <result property="businessLine" column="business_line"/>
         <result property="shopName" column="shop_name"/>
         <result property="shopStatus" column="shop_status"/>
         <result property="shopIcon" column="shop_icon"/>
@@ -14,11 +16,22 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, tenant_id, shop_name, shop_status, shop_icon, contact_phone, created_at, updated_at
+        id, shop_id, tenant_id, business_line, shop_name, shop_status, shop_icon, contact_phone, created_at, updated_at
     </sql>
 
-    <!-- 自定义查询：根据租户ID查询店铺列表 -->
-    <select id="selectByTenantId" parameterType="java.lang.Long" resultMap="MallShopResultMap">
+    <select id="selectByShopId" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE shop_id = #{shopId}
+    </select>
+
+    <select id="selectByBusinessLineAndId" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE business_line = #{businessLine} AND shop_id = #{shopId}
+    </select>
+
+    <select id="selectByTenantId" resultMap="MallShopResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM mall_shop
         WHERE tenant_id = #{tenantId}
@@ -26,7 +39,6 @@
         ORDER BY shop_name
     </select>
 
-    <!-- 自定义查询：根据租户ID和状态查询店铺列表 -->
     <select id="selectByTenantIdAndStatus" resultMap="MallShopResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM mall_shop
@@ -35,5 +47,34 @@
         ORDER BY shop_name
     </select>
 
-</mapper>
+    <select id="selectByBusinessLineAndTenantId" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE business_line = #{businessLine}
+          AND tenant_id = #{tenantId}
+          AND shop_status = 'active'
+        ORDER BY shop_name
+    </select>
 
+    <select id="selectByBusinessLineAndTenantIdAndStatus" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE business_line = #{businessLine}
+          AND tenant_id = #{tenantId}
+          AND shop_status = #{shopStatus}
+        ORDER BY shop_name
+    </select>
+
+    <select id="selectByIdAndTenantId" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE shop_id = #{shopId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectByBusinessLineAndIdAndTenantId" resultMap="MallShopResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM mall_shop
+        WHERE business_line = #{businessLine} AND shop_id = #{shopId} AND tenant_id = #{tenantId}
+    </select>
+
+</mapper>

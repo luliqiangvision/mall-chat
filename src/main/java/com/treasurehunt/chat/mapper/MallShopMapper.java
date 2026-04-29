@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.treasurehunt.chat.domain.MallShopDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
@@ -14,43 +13,49 @@ import java.util.List;
  */
 @Mapper
 public interface MallShopMapper extends BaseMapper<MallShopDO> {
-    
+
     /**
-     * 根据店铺ID查询店铺信息
-     * 
-     * @param id 店铺主键ID
-     * @return 店铺信息
+     * 按业务店铺 ID（shop_id）查询，与 {@link BaseMapper#selectById}（按自增 id）区分
      */
-    @Select("SELECT * FROM mall_shop WHERE id = #{id}")
-    MallShopDO selectById(@Param("id") Long id);
-    
+    MallShopDO selectByShopId(@Param("shopId") Long shopId);
+
+    /**
+     * 根据业务线和店铺ID查询店铺信息
+     */
+    MallShopDO selectByBusinessLineAndId(@Param("businessLine") String businessLine, @Param("shopId") Long shopId);
+
     /**
      * 根据租户ID查询店铺列表
-     * 
-     * @param tenantId 租户ID
-     * @return 店铺列表
      */
-    @Select("SELECT * FROM mall_shop WHERE tenant_id = #{tenantId} AND shop_status = 'active' ORDER BY shop_name")
     List<MallShopDO> selectByTenantId(@Param("tenantId") Long tenantId);
-    
+
+    /**
+     * 根据业务线和租户ID查询店铺列表
+     */
+    List<MallShopDO> selectByBusinessLineAndTenantId(@Param("businessLine") String businessLine,
+                                                     @Param("tenantId") Long tenantId);
+
     /**
      * 根据租户ID和状态查询店铺列表
-     * 
-     * @param tenantId 租户ID
-     * @param shopStatus 店铺状态
-     * @return 店铺列表
      */
-    @Select("SELECT * FROM mall_shop WHERE tenant_id = #{tenantId} AND shop_status = #{shopStatus} ORDER BY shop_name")
     List<MallShopDO> selectByTenantIdAndStatus(@Param("tenantId") Long tenantId, @Param("shopStatus") String shopStatus);
-    
+
+    /**
+     * 根据业务线、租户ID和状态查询店铺列表
+     */
+    List<MallShopDO> selectByBusinessLineAndTenantIdAndStatus(@Param("businessLine") String businessLine,
+                                                              @Param("tenantId") Long tenantId,
+                                                              @Param("shopStatus") String shopStatus);
+
     /**
      * 根据店铺ID和租户ID查询店铺信息（用于权限校验）
-     * 
-     * @param id 店铺主键ID
-     * @param tenantId 租户ID
-     * @return 店铺信息
      */
-    @Select("SELECT * FROM mall_shop WHERE id = #{id} AND tenant_id = #{tenantId}")
-    MallShopDO selectByIdAndTenantId(@Param("id") Long id, @Param("tenantId") Long tenantId);
-}
+    MallShopDO selectByIdAndTenantId(@Param("shopId") Long shopId, @Param("tenantId") Long tenantId);
 
+    /**
+     * 根据业务线、店铺ID和租户ID查询店铺信息（用于权限校验）
+     */
+    MallShopDO selectByBusinessLineAndIdAndTenantId(@Param("businessLine") String businessLine,
+                                                     @Param("shopId") Long shopId,
+                                                     @Param("tenantId") Long tenantId);
+}

@@ -15,8 +15,8 @@ import java.io.Serializable;
 @Schema(description = "店铺信息")
 public class MallShopVO implements Serializable {
     
-    @Schema(description = "店铺主键ID")
-    private Long id;
+    @Schema(description = "店铺ID（与前端 shopId 一致）")
+    private Long shopId;
     
     @Schema(description = "租户ID（所属商户）")
     private Long tenantId;
