@@ -60,7 +60,7 @@ public class CustomerHttpService {
      * - 若没有未读，则返回最近 10 条消息
      * 返回按 server_msg_id 升序排列
      */
-    public ChatMessagesInitResult initChatWindowByConversationId(String conversationId, Long userId) {
+    public ChatMessagesInitResult initChatWindowByConversationId(String conversationId, Long userId, String businessLine) {
         try {
             // 获取已读指针
             Long lastRead = 0L;
@@ -117,7 +117,7 @@ public class CustomerHttpService {
                 .chatMessages(vos)
                 .build();
         } catch (Exception e) {
-            log.error("根据conversationId初始化聊天窗口失败: conversationId={}, userId={}", conversationId, userId, e);
+            log.error("根据conversationId初始化聊天窗口失败: conversationId={}, userId={}, businessLine={}", conversationId, userId, businessLine, e);
             throw new RuntimeException("根据conversationId初始化聊天窗口失败: " + e.getMessage(), e);
         }
     }
@@ -128,13 +128,14 @@ public class CustomerHttpService {
      * @param userId 用户ID
      * @return 未读消息检查结果
      */
-    public CheckUnreadMessagesResponse checkUnreadMessages(Long userId) {
-        log.debug("开始检查用户未读消息: userId={}", userId);
+    public CheckUnreadMessagesResponse checkUnreadMessages(Long userId, String businessLine) {
+        log.debug("开始检查用户未读消息: userId={}, businessLine={}", userId, businessLine);
         
         try {
             // 1. 查询用户参与的所有会话
             List<ChatConversationDO> conversations = chatConversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
+                    .eq("business_line", businessLine)
                     .eq("customer_id", userId)
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
@@ -179,7 +180,7 @@ public class CustomerHttpService {
                     .build();
                     
         } catch (Exception e) {
-            log.error("检查未读消息失败: userId={}", userId, e);
+            log.error("检查未读消息失败: userId={}, businessLine={}", userId, businessLine, e);
             throw new RuntimeException("检查未读消息失败", e);
         }
     }
@@ -190,13 +191,14 @@ public class CustomerHttpService {
      * @param userId 用户ID
      * @return 会话视图Map，key为会话ID，value为会话视图VO
      */
-    public Map<String, ConversationViewVO> getChatWindowList(Long userId) {
-        log.debug("开始获取客户聊天窗口列表: userId={}", userId);
+    public Map<String, ConversationViewVO> getChatWindowList(Long userId, String businessLine) {
+        log.debug("开始获取客户聊天窗口列表: userId={}, businessLine={}", userId, businessLine);
         
         try {
             // 1. 查询用户参与的所有会话
             List<ChatConversationDO> conversations = chatConversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
+                    .eq("business_line", businessLine)
                     .eq("customer_id", userId)
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
@@ -243,7 +245,7 @@ public class CustomerHttpService {
                 // 查询店铺信息
                 MallShopVO shopVO = null;
                 if (conversation.getShopId() != null) {
-                    MallShopDO shopDO = mallShopService.getShopById(conversation.getShopId());
+                    MallShopDO shopDO = mallShopService.getShopByBusinessLineAndId(businessLine, conversation.getShopId());
                     shopVO = Conver.toMallShopVO(shopDO);
                 }
                 
@@ -306,7 +308,7 @@ public class CustomerHttpService {
             return result;
             
         } catch (Exception e) {
-            log.error("获取客户聊天窗口列表失败: userId={}", userId, e);
+            log.error("获取客户聊天窗口列表失败: userId={}, businessLine={}", userId, businessLine, e);
             throw new RuntimeException("获取客户聊天窗口列表失败", e);
         }
     }
@@ -318,8 +320,8 @@ public class CustomerHttpService {
      * @param userId 用户ID
      * @return 分页消息结果
      */
-    public ChatmessageWithPaged pullMessageWithPagedQuery(CustomerPullMessageWithPagedQueryRequest request, Long userId) {
-        log.debug("开始客户分页拉取消息: userId={}, request={}", userId, request);
+    public ChatmessageWithPaged pullMessageWithPagedQuery(CustomerPullMessageWithPagedQueryRequest request, Long userId, String businessLine) {
+        log.debug("开始客户分页拉取消息: userId={}, businessLine={}, request={}", userId, businessLine, request);
         
         try {
             // 分页查询
@@ -335,7 +337,7 @@ public class CustomerHttpService {
             .chatMessages(chatMessagesVO)
             .build();
         } catch (Exception e) {
-            log.error("客户分页拉取消息失败: userId={}", userId, e);
+            log.error("客户分页拉取消息失败: userId={}, businessLine={}", userId, businessLine, e);
             throw new RuntimeException("客户分页拉取消息失败: " + e.getMessage(), e);
         }
     }
@@ -347,8 +349,8 @@ public class CustomerHttpService {
      * @param userId 用户ID
      * @return 缺失消息响应
      */
-    public CheckMissingMessagesResponse checkMissingMessages(CheckMissingMessagesRequest request, Long userId) {
-        log.debug("开始检查缺失消息: userId={}, request={}", userId, request);
+    public CheckMissingMessagesResponse checkMissingMessages(CheckMissingMessagesRequest request, Long userId, String businessLine) {
+        log.debug("开始检查缺失消息: userId={}, businessLine={}, request={}", userId, businessLine, request);
         
         try {
             String conversationId = request.getConversationId();
@@ -381,7 +383,7 @@ public class CustomerHttpService {
                 .build();
                 
         } catch (Exception e) {
-            log.error("检查缺失消息失败: userId={}", userId, e);
+            log.error("检查缺失消息失败: userId={}, businessLine={}", userId, businessLine, e);
             throw new RuntimeException("检查缺失消息失败: " + e.getMessage(), e);
         }
     }
@@ -394,8 +396,8 @@ public class CustomerHttpService {
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
-    public boolean markAsRead(MarkAsReadRequest request, Long userId) {
-        log.debug("开始标记已读: userId={}, request={}", userId, request);
+    public boolean markAsRead(MarkAsReadRequest request, Long userId, String businessLine) {
+        log.debug("开始标记已读: userId={}, businessLine={}, request={}", userId, businessLine, request);
         
         try {
             String conversationId = request.getConversationId();
@@ -453,7 +455,7 @@ public class CustomerHttpService {
             }
             
         } catch (Exception e) {
-            log.error("标记已读失败: userId={}, request={}", userId, request, e);
+            log.error("标记已读失败: userId={}, businessLine={}, request={}", userId, businessLine, request, e);
             throw new RuntimeException("标记已读失败", e);
         }
     }

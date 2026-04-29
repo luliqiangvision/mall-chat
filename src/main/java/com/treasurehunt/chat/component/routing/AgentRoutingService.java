@@ -12,9 +12,10 @@ public interface AgentRoutingService {
 	 * 分配客服人员（客户->客服方向）
 	 * @param conversationId 聊天窗口ID  
 	 * @param isNewConversation 是否为新聊天窗口
+	 * @param businessLine 业务线
 	 * @return 该聊天窗口的客服ID
 	 */
-	RouteResult assignAgents(String conversationId, boolean isNewConversation);
+	RouteResult assignAgents(String conversationId, boolean isNewConversation, String businessLine);
 	/**
 	 * 指派首个客服到聊天窗口（抢占式首绑）
 	 * @param conversationId 聊天窗口ID

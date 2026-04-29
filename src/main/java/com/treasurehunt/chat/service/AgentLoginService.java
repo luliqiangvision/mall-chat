@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 客服登录服务
  * 负责客服的登录认证和token生成
@@ -64,7 +66,8 @@ public class AgentLoginService {
         // 6. 获取当前登录用户Token信息
         SaTokenInfo saTokenInfo = StpUtilForType.getTokenInfo(StpUtilForType.TYPE_AGENT_LOGIN);
         
-        log.info("客服登录成功: agentName={}, token={}", request.getAgentName(), saTokenInfo.getTokenValue());
+        log.info("客服登录成功: agentName={}, agentId={}, subjectId={}, businessLine={}, token={}",
+                request.getAgentName(), agent.getAgentId(), agent.getSubjectId(), agent.getBusinessLine(), saTokenInfo.getTokenValue());
 
         return saTokenInfo;
     }
@@ -111,6 +114,16 @@ public class AgentLoginService {
         }
         
         return agent;
+    }
+
+    /**
+     * 按统一身份ID和业务线查询客服身份列表。
+     */
+    public List<ChatAgentDO> listAgentIdentities(Long subjectId, String businessLine) {
+        if (subjectId == null || businessLine == null || businessLine.isEmpty()) {
+            throw new RuntimeException("subjectId 和 businessLine 不能为空");
+        }
+        return chatAgentMapper.selectBySubjectIdAndBusinessLine(subjectId, businessLine);
     }
 }
 

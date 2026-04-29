@@ -34,5 +34,21 @@ public interface ChatConversationMapper extends BaseMapper<ChatConversationDO> {
             "AND status NOT IN ('deleted_by_customer', 'deleted_by_agent') " +
             "ORDER BY created_at DESC LIMIT 1")
     ChatConversationDO findLatestByCustomerAndShop(@Param("customerId") String customerId, @Param("shopId") Long shopId);
+
+    /**
+     * 查询用户在指定店铺、指定业务线下的最新会话
+     *
+     * @param businessLine 业务线
+     * @param customerId 客户ID
+     * @param shopId 店铺ID
+     * @return 会话信息
+     */
+    @Select("SELECT * FROM chat_conversation WHERE business_line = #{businessLine} " +
+            "AND customer_id = #{customerId} AND shop_id = #{shopId} " +
+            "AND status NOT IN ('deleted_by_customer', 'deleted_by_agent') " +
+            "ORDER BY created_at DESC LIMIT 1")
+    ChatConversationDO findLatestByBusinessLineAndCustomerAndShop(@Param("businessLine") String businessLine,
+                                                                   @Param("customerId") String customerId,
+                                                                   @Param("shopId") Long shopId);
 }
 

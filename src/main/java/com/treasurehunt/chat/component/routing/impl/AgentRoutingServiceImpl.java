@@ -51,30 +51,31 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	 * 同时抄送给机器人
 	 */
 	@Override
-	public RouteResult assignAgents(String conversationId, boolean isNewConversation) {
+	public RouteResult assignAgents(String conversationId, boolean isNewConversation, String businessLine) {
 		if (conversationId == null || conversationId.isEmpty()) {
 			log.warn("conversationId is null/empty");
 			return new RouteResult(null, false);
 		}
+		String resolvedBusinessLine = (businessLine == null || businessLine.isEmpty()) ? "default" : businessLine;
 
 		// 场景1：新会话创建
 		if (isNewConversation) {
-			return assignPreSalesAgentsWithFallback(conversationId);
+			return assignPreSalesAgentsWithFallback(conversationId, resolvedBusinessLine);
 		}
 		
 		// 场景2&3：已存在会话
-		return assignExistingOrPreSalesAgents(conversationId);
+		return assignExistingOrPreSalesAgents(conversationId, resolvedBusinessLine);
 	}
 
 	/**
 	 * 场景1：新聊天窗口创建 - 分配给售前客服（只分配一个）
 	 */
-	private RouteResult assignPreSalesAgentsWithFallback(String conversationId) {
-		log.info("场景1：新会话创建，分配给售前客服: conversationId={}", conversationId);
+	private RouteResult assignPreSalesAgentsWithFallback(String conversationId, String businessLine) {
+		log.info("场景1：新会话创建，分配给售前客服: conversationId={}, businessLine={}", conversationId, businessLine);
 		
 		// 1. 获取负载最低的售前客服（只分配一个）
 		Long tenantId = 1L; // 默认使用租户ID为1，实际项目中可以从上下文获取
-		String preSalesAgentId = agentManagementService.getLeastLoadedPreSalesAgent(tenantId);
+		String preSalesAgentId = agentManagementService.getLeastLoadedPreSalesAgent(businessLine, tenantId);
 		
 		// 这里是防御式编程,一般肯定是有首先客服的账号的
 		if (preSalesAgentId == null || preSalesAgentId.isEmpty()) {
@@ -94,7 +95,7 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	/**
 	 * 场景2&3：已存在会话 - 检查现有客服或分配新客服
 	 */
-	private RouteResult assignExistingOrPreSalesAgents(String conversationId) {
+	private RouteResult assignExistingOrPreSalesAgents(String conversationId, String businessLine) {
 		// 1. 查询现有客服成员
 		QueryWrapper<ChatConversationMemberDO> memberQuery = new QueryWrapper<>();
 		memberQuery.eq("conversation_id", conversationId)
@@ -115,7 +116,7 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 		
 		// 场景3：所有客服都退群了，分配给售前客服
 		log.info("场景3：所有客服都退群了，分配给售前客服: conversationId={}", conversationId);
-		return assignPreSalesAgentsWithFallback(conversationId);
+		return assignPreSalesAgentsWithFallback(conversationId, businessLine);
 	}
 
 	/**

@@ -43,6 +43,10 @@ public class ChatConversationDO {
     @TableField("tenant_id")
     private Long tenantId;
 
+    /** 业务线标识（由网关透传 X-Business-Line） */
+    @TableField("business_line")
+    private String businessLine;
+
     /** 店铺ID（可为空） */
     @TableField("shop_id")
     private Long shopId;

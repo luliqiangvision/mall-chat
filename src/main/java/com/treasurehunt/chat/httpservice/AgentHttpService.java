@@ -70,13 +70,14 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 活跃会话列表
      */
-    public ActiveConversations getConversations(String agentId) {
-        log.debug("开始获取客服活跃会话列表: agentId={}", agentId);
+    public ActiveConversations getConversations(String agentId, String businessLine) {
+        log.debug("开始获取客服活跃会话列表: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
             // 1. 查询客服的活跃会话
             List<ChatConversationDO> conversations = conversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
+                    .eq("business_line", businessLine)
                     .eq("agent_id", agentId)
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
@@ -114,7 +115,7 @@ public class AgentHttpService {
                     .build();
                     
         } catch (Exception e) {
-            log.error("客服获取活跃会话列表失败: agentId={}", agentId, e);
+            log.error("客服获取活跃会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
             return ActiveConversations.builder()
                     .conversations(new ArrayList<>())
                     .totalUnreadCount(0)
@@ -129,13 +130,14 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 待分配会话列表
      */
-    public GetUnassignedConversationsResult getUnassignedConversations(String agentId) {
-        log.debug("开始获取待分配会话列表: agentId={}", agentId);
+    public GetUnassignedConversationsResult getUnassignedConversations(String agentId, String businessLine) {
+        log.debug("开始获取待分配会话列表: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
             // 查询待分配的会话
             List<ChatConversationDO> unassignedConversations = conversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
+                    .eq("business_line", businessLine)
                     .isNull("agent_id")
                     .eq("status", "waiting")
                     .orderByAsc("created_at")
@@ -157,7 +159,7 @@ public class AgentHttpService {
                     .build();
                     
         } catch (Exception e) {
-            log.error("获取待分配会话列表失败: agentId={}", agentId, e);
+            log.error("获取待分配会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
             return GetUnassignedConversationsResult.builder()
                     .conversations(new ArrayList<>())
                     .build();
@@ -171,8 +173,8 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 加入结果
      */
-    public JoinConversationResult grapConversation(JoinConversationRequest request, String agentId) {
-        log.info("客服加入会话: agentId={}, conversationId={}", agentId, request.getConversationId());
+    public JoinConversationResult grapConversation(JoinConversationRequest request, String agentId, String businessLine) {
+        log.info("客服加入会话: agentId={}, businessLine={}, conversationId={}", agentId, businessLine, request.getConversationId());
         try {
             String conversationId = request.getConversationId();
             if (conversationId == null || conversationId.isEmpty()) {
@@ -184,7 +186,7 @@ public class AgentHttpService {
             
             // 2. 验证会话是否存在
             QueryWrapper<ChatConversationDO> conversationQuery = new QueryWrapper<>();
-            conversationQuery.eq("conversation_id", conversationId);
+            conversationQuery.eq("business_line", businessLine).eq("conversation_id", conversationId);
             ChatConversationDO conversation = conversationMapper.selectOne(conversationQuery);
             if (conversation == null) {
                 return JoinConversationResult.builder()
@@ -236,7 +238,7 @@ public class AgentHttpService {
                 .build();
                 
         } catch (Exception e) {
-            log.error("客服加入会话失败: agentId={}", agentId, e);
+            log.error("客服加入会话失败: agentId={}, businessLine={}", agentId, businessLine, e);
             return JoinConversationResult.builder()
                 .success(false)
                 .errorMessage("加入会话失败: " + e.getMessage())
@@ -251,7 +253,7 @@ public class AgentHttpService {
      * @param inviterAgentId 邀请人客服ID
      * @return 加入结果
      */
-    public JoinConversationResult inviteToConversation(String conversationId, String agentId, String inviterAgentId) {
+    public JoinConversationResult inviteToConversation(String conversationId, String agentId, String inviterAgentId, String businessLine) {
         log.info("邀请客服加入会话: conversationId={}, agentId={}, inviterAgentId={}", 
                 conversationId, agentId, inviterAgentId);
         try {
@@ -264,7 +266,7 @@ public class AgentHttpService {
             
             // 2. 验证会话是否存在
             QueryWrapper<ChatConversationDO> conversationQuery = new QueryWrapper<>();
-            conversationQuery.eq("conversation_id", conversationId);
+            conversationQuery.eq("business_line", businessLine).eq("conversation_id", conversationId);
             ChatConversationDO conversation = conversationMapper.selectOne(conversationQuery);
             if (conversation == null) {
                 return JoinConversationResult.builder()
@@ -316,7 +318,7 @@ public class AgentHttpService {
                 .build();
                 
         } catch (Exception e) {
-            log.error("客服加入会话失败: agentId={}", agentId, e);
+            log.error("客服加入会话失败: agentId={}, businessLine={}", agentId, businessLine, e);
             return JoinConversationResult.builder()
                 .success(false)
                 .errorMessage("加入会话失败: " + e.getMessage())
@@ -331,8 +333,8 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 分页消息结果
      */
-    public ChatmessageWithPaged pullMessageWithPagedQuery(PullMessageWithPagedQueryRequest request, String agentId) {
-        log.info("客服分页拉取消息: agentId={}, request={}", agentId, request);
+    public ChatmessageWithPaged pullMessageWithPagedQuery(PullMessageWithPagedQueryRequest request, String agentId, String businessLine) {
+        log.info("客服分页拉取消息: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         try {
             // 分页查询
             QueryWrapper<ChatMessageDO> queryWrapper = new QueryWrapper<>();
@@ -347,7 +349,7 @@ public class AgentHttpService {
             .chatMessages(chatMessagesVO)
             .build();
         } catch (Exception e) {
-            log.error("客服分页拉取消息失败: agentId={}", agentId, e);
+            log.error("客服分页拉取消息失败: agentId={}, businessLine={}", agentId, businessLine, e);
             throw new RuntimeException("客服分页拉取消息失败: " + e.getMessage(), e);
         }
     }
@@ -359,8 +361,8 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 删除结果
      */
-    public String deleteConversation(String conversationId, String agentId) {
-        log.info("客服删除会话: agentId={}, conversationId={}", agentId, conversationId);
+    public String deleteConversation(String conversationId, String agentId, String businessLine) {
+        log.info("客服删除会话: agentId={}, businessLine={}, conversationId={}", agentId, businessLine, conversationId);
         try {
             boolean success = chatWindowManager.deleteConversationByAgent(conversationId, agentId);
             if (success) {
@@ -369,7 +371,7 @@ public class AgentHttpService {
                 throw new RuntimeException("会话删除失败，可能无权限或已删除");
             }
         } catch (Exception e) {
-            log.error("客服删除会话失败: agentId={}, conversationId={}", agentId, conversationId, e);
+            log.error("客服删除会话失败: agentId={}, businessLine={}, conversationId={}", agentId, businessLine, conversationId, e);
             throw new RuntimeException("客服删除会话失败: " + e.getMessage(), e);
         }
     }
@@ -380,13 +382,14 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 会话视图Map，key为会话ID，value为会话视图VO
      */
-    public Map<String, ConversationViewVO> getChatWindowList(String agentId) {
-        log.debug("开始获取客服聊天窗口列表: agentId={}", agentId);
+    public Map<String, ConversationViewVO> getChatWindowList(String agentId, String businessLine) {
+        log.debug("开始获取客服聊天窗口列表: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
             // 1. 查询客服参与的所有会话
             List<ChatConversationDO> conversations = conversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
+                    .eq("business_line", businessLine)
                     .eq("agent_id", agentId)
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
@@ -434,7 +437,7 @@ public class AgentHttpService {
                 // 查询店铺信息
                 MallShopVO shopVO = null;
                 if (conversation.getShopId() != null) {
-                    MallShopDO shopDO = mallShopService.getShopById(conversation.getShopId());
+                    MallShopDO shopDO = mallShopService.getShopByBusinessLineAndId(businessLine, conversation.getShopId());
                     shopVO = Conver.toMallShopVO(shopDO);
                 }
                 
@@ -497,7 +500,7 @@ public class AgentHttpService {
             return result;
             
         } catch (Exception e) {
-            log.error("获取客服聊天窗口列表失败: agentId={}", agentId, e);
+            log.error("获取客服聊天窗口列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
             throw new RuntimeException("获取客服聊天窗口列表失败", e);
         }
     }
@@ -509,8 +512,8 @@ public class AgentHttpService {
      * @param agentId 客服ID
      * @return 缺失消息响应
      */
-    public CheckMissingMessagesResponse checkMissingMessages(CheckMissingMessagesRequest request, String agentId) {
-        log.debug("开始检查缺失消息: agentId={}, request={}", agentId, request);
+    public CheckMissingMessagesResponse checkMissingMessages(CheckMissingMessagesRequest request, String agentId, String businessLine) {
+        log.debug("开始检查缺失消息: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
             String conversationId = request.getConversationId();
@@ -543,7 +546,7 @@ public class AgentHttpService {
                 .build();
                 
         } catch (Exception e) {
-            log.error("检查缺失消息失败: agentId={}", agentId, e);
+            log.error("检查缺失消息失败: agentId={}, businessLine={}", agentId, businessLine, e);
             throw new RuntimeException("检查缺失消息失败: " + e.getMessage(), e);
         }
     }
@@ -556,8 +559,8 @@ public class AgentHttpService {
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
-    public boolean markAsRead(MarkAsReadRequest request, String agentId) {
-        log.debug("开始标记已读: agentId={}, request={}", agentId, request);
+    public boolean markAsRead(MarkAsReadRequest request, String agentId, String businessLine) {
+        log.debug("开始标记已读: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
             String conversationId = request.getConversationId();
@@ -615,7 +618,7 @@ public class AgentHttpService {
             }
             
         } catch (Exception e) {
-            log.error("标记已读失败: agentId={}, request={}", agentId, request, e);
+            log.error("标记已读失败: agentId={}, businessLine={}, request={}", agentId, businessLine, request, e);
             throw new RuntimeException("标记已读失败", e);
         }
     }

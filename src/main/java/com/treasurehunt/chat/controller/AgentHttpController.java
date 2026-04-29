@@ -1,6 +1,7 @@
 package com.treasurehunt.chat.controller;
 
 import com.treasurehunt.chat.httpservice.AgentHttpService;
+import com.treasurehunt.chat.utils.BusinessLineResolver;
 import com.treasurehunt.chat.vo.*;
 import com.treasurehuntshop.mall.common.api.commonUtil.CommonResult;
 import lombok.extern.slf4j.Slf4j;
@@ -27,14 +28,17 @@ public class AgentHttpController {
      * @return 活跃会话列表
      */
     @PostMapping("/listConversations")
-    public CommonResult<ActiveConversations> getConversations(@RequestBody AgentConversationsRequest request) {
-        log.debug("处理客服获取会话列表请求: agentId={}", request.getAgentId());
+    public CommonResult<ActiveConversations> getConversations(@RequestBody AgentConversationsRequest request,
+                                                              @RequestHeader("X-User-Id") String agentId,
+                                                              @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服获取会话列表请求: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
-            ActiveConversations response = agentHttpService.getConversations(request.getAgentId());
+            ActiveConversations response = agentHttpService.getConversations(agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服获取会话列表失败: agentId={}", request.getAgentId(), e);
+            log.error("处理客服获取会话列表失败: agentId={}", agentId, e);
             throw new RuntimeException("获取会话列表失败", e);
         }
     }
@@ -46,14 +50,17 @@ public class AgentHttpController {
      * @return 待分配会话列表
      */
     @PostMapping("/unassignedConversations")
-    public CommonResult<GetUnassignedConversationsResult> getUnassignedConversations(@RequestBody AgentConversationsRequest request) {
-        log.debug("处理客服获取待分配会话列表请求: agentId={}", request.getAgentId());
+    public CommonResult<GetUnassignedConversationsResult> getUnassignedConversations(@RequestBody AgentConversationsRequest request,
+                                                                                      @RequestHeader("X-User-Id") String agentId,
+                                                                                      @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服获取待分配会话列表请求: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
-            GetUnassignedConversationsResult response = agentHttpService.getUnassignedConversations(request.getAgentId());
+            GetUnassignedConversationsResult response = agentHttpService.getUnassignedConversations(agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服获取待分配会话列表失败: agentId={}", request.getAgentId(), e);
+            log.error("处理客服获取待分配会话列表失败: agentId={}", agentId, e);
             throw new RuntimeException("获取待分配会话列表失败", e);
         }
     }
@@ -65,14 +72,17 @@ public class AgentHttpController {
      * @return 加入结果
      */
     @PostMapping("/joinConversation")
-    public CommonResult<JoinConversationResult> joinConversation(@RequestBody JoinConversationRequest request) {
-        log.debug("处理客服加入会话请求: agentId={}, request={}", request.getAgentId(), request);
+    public CommonResult<JoinConversationResult> joinConversation(@RequestBody JoinConversationRequest request,
+                                                                 @RequestHeader("X-User-Id") String agentId,
+                                                                 @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服加入会话请求: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
-            JoinConversationResult response = agentHttpService.grapConversation(request, request.getAgentId());
+            JoinConversationResult response = agentHttpService.grapConversation(request, agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服加入会话失败: agentId={}", request.getAgentId(), e);
+            log.error("处理客服加入会话失败: agentId={}", agentId, e);
             throw new RuntimeException("加入会话失败", e);
         }
     }
@@ -84,14 +94,17 @@ public class AgentHttpController {
      * @return 分页消息结果
      */
     @PostMapping("/pullMessageWithPagedQuery")
-    public CommonResult<ChatmessageWithPaged> pullMessageWithPagedQuery(@RequestBody PullMessageWithPagedQueryRequest request) {
-        log.debug("处理客服分页拉取消息请求: agentId={}, request={}", request.getAgentId(), request);
+    public CommonResult<ChatmessageWithPaged> pullMessageWithPagedQuery(@RequestBody PullMessageWithPagedQueryRequest request,
+                                                                         @RequestHeader("X-User-Id") String agentId,
+                                                                         @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服分页拉取消息请求: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
-            ChatmessageWithPaged response = agentHttpService.pullMessageWithPagedQuery(request, request.getAgentId());
+            ChatmessageWithPaged response = agentHttpService.pullMessageWithPagedQuery(request, agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服分页拉取消息失败: agentId={}", request.getAgentId(), e);
+            log.error("处理客服分页拉取消息失败: agentId={}", agentId, e);
             throw new RuntimeException("分页拉取消息失败", e);
         }
     }
@@ -103,14 +116,17 @@ public class AgentHttpController {
      * @return 删除结果
      */
     @PostMapping("/deleteConversation")
-    public CommonResult<String> deleteConversation(@RequestBody AgentDeleteConversationRequest request) {
-        log.debug("处理客服删除会话请求: agentId={}, conversationId={}", request.getAgentId(), request.getConversationId());
+    public CommonResult<String> deleteConversation(@RequestBody AgentDeleteConversationRequest request,
+                                                   @RequestHeader("X-User-Id") String agentId,
+                                                   @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服删除会话请求: agentId={}, businessLine={}, conversationId={}", agentId, businessLine, request.getConversationId());
         
         try {
-            String response = agentHttpService.deleteConversation(request.getConversationId(), request.getAgentId());
+            String response = agentHttpService.deleteConversation(request.getConversationId(), agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服删除会话失败: agentId={}, conversationId={}", request.getAgentId(), request.getConversationId(), e);
+            log.error("处理客服删除会话失败: agentId={}, conversationId={}", agentId, request.getConversationId(), e);
             throw new RuntimeException("删除会话失败", e);
         }
     }
@@ -122,14 +138,17 @@ public class AgentHttpController {
      * @return 会话视图Map
      */
     @PostMapping("/getChatWindowList")
-    public CommonResult<Map<String, ConversationViewVO>> getChatWindowList(@RequestBody InitConversationViewRequest request) {
-        log.debug("处理客服获取聊天窗口列表请求: agentId={}", request.getUserId());
+    public CommonResult<Map<String, ConversationViewVO>> getChatWindowList(@RequestBody InitConversationViewRequest request,
+                                                                            @RequestHeader("X-User-Id") String agentId,
+                                                                            @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服获取聊天窗口列表请求: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
-            Map<String, ConversationViewVO> response = agentHttpService.getChatWindowList(request.getUserId());
+            Map<String, ConversationViewVO> response = agentHttpService.getChatWindowList(agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
-            log.error("处理客服获取聊天窗口列表失败: agentId={}", request.getUserId(), e);
+            log.error("处理客服获取聊天窗口列表失败: agentId={}", agentId, e);
             throw new RuntimeException("获取聊天窗口列表失败", e);
         }
     }
@@ -142,11 +161,14 @@ public class AgentHttpController {
      * @return 缺失消息响应
      */
     @PostMapping("/checkMissingMessages")
-    public CommonResult<CheckMissingMessagesResponse> checkMissingMessages(@RequestBody CheckMissingMessagesRequest request, @RequestHeader("X-User-Id") String agentId) {
-        log.debug("处理客服检查缺失消息请求: agentId={}, request={}", agentId, request);
+    public CommonResult<CheckMissingMessagesResponse> checkMissingMessages(@RequestBody CheckMissingMessagesRequest request,
+                                                                           @RequestHeader("X-User-Id") String agentId,
+                                                                           @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服检查缺失消息请求: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
-            CheckMissingMessagesResponse response = agentHttpService.checkMissingMessages(request, agentId);
+            CheckMissingMessagesResponse response = agentHttpService.checkMissingMessages(request, agentId, businessLine);
             return CommonResult.buildSuccess(response);
         } catch (Exception e) {
             log.error("处理客服检查缺失消息失败: agentId={}", agentId, e);
@@ -162,11 +184,14 @@ public class AgentHttpController {
      * @return 是否成功
      */
     @PostMapping("/markAsRead")
-    public CommonResult<Boolean> markAsRead(@RequestBody MarkAsReadRequest request, @RequestHeader("X-User-Id") String agentId) {
-        log.debug("处理客服标记已读请求: agentId={}, request={}", agentId, request);
+    public CommonResult<Boolean> markAsRead(@RequestBody MarkAsReadRequest request,
+                                            @RequestHeader("X-User-Id") String agentId,
+                                            @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
+        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        log.debug("处理客服标记已读请求: agentId={}, businessLine={}, request={}", agentId, businessLine, request);
         
         try {
-            boolean result = agentHttpService.markAsRead(request, agentId);
+            boolean result = agentHttpService.markAsRead(request, agentId, businessLine);
             return CommonResult.buildSuccess(result);
         } catch (Exception e) {
             log.error("处理客服标记已读失败: agentId={}", agentId, e);

@@ -15,6 +15,12 @@ import java.util.List;
  */
 @Mapper
 public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
+
+    /**
+     * 按统一身份ID和业务线查询客服身份列表（阶段1：支持1:N）。
+     */
+    List<ChatAgentDO> selectBySubjectIdAndBusinessLine(@Param("subjectId") Long subjectId,
+                                                       @Param("businessLine") String businessLine);
     
     /**
      * 根据客服类型和状态查询客服列表
@@ -28,6 +34,16 @@ public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
     List<ChatAgentDO> selectByTypeAndStatus(@Param("agentType") String agentType, 
                                           @Param("status") String status, 
                                           @Param("tenantId") Long tenantId);
+
+    /**
+     * 根据业务线、客服类型和状态查询客服列表
+     */
+    @Select("SELECT * FROM chat_agent WHERE business_line = #{businessLine} " +
+            "AND agent_type = #{agentType} AND status = #{status} AND tenant_id = #{tenantId}")
+    List<ChatAgentDO> selectByBusinessLineAndTypeAndStatus(@Param("businessLine") String businessLine,
+                                                           @Param("agentType") String agentType,
+                                                           @Param("status") String status,
+                                                           @Param("tenantId") Long tenantId);
     
     /**
      * 查询售前客服列表（活跃状态）
@@ -37,6 +53,14 @@ public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
      */
     @Select("SELECT * FROM chat_agent WHERE agent_type = 'pre-sales' AND status = 'active' AND tenant_id = #{tenantId}")
     List<ChatAgentDO> selectPreSalesAgents(@Param("tenantId") Long tenantId);
+
+    /**
+     * 查询指定业务线售前客服列表（活跃状态）
+     */
+    @Select("SELECT * FROM chat_agent WHERE business_line = #{businessLine} " +
+            "AND agent_type = 'pre-sales' AND status = 'active' AND tenant_id = #{tenantId}")
+    List<ChatAgentDO> selectPreSalesAgentsByBusinessLine(@Param("businessLine") String businessLine,
+                                                         @Param("tenantId") Long tenantId);
     
     /**
      * 查询售后客服列表（活跃状态）
@@ -46,6 +70,14 @@ public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
      */
     @Select("SELECT * FROM chat_agent WHERE agent_type = 'after-sales' AND status = 'active' AND tenant_id = #{tenantId}")
     List<ChatAgentDO> selectAfterSalesAgents(@Param("tenantId") Long tenantId);
+
+    /**
+     * 查询指定业务线售后客服列表（活跃状态）
+     */
+    @Select("SELECT * FROM chat_agent WHERE business_line = #{businessLine} " +
+            "AND agent_type = 'after-sales' AND status = 'active' AND tenant_id = #{tenantId}")
+    List<ChatAgentDO> selectAfterSalesAgentsByBusinessLine(@Param("businessLine") String businessLine,
+                                                           @Param("tenantId") Long tenantId);
     
     /**
      * 根据客服ID查询客服信息
@@ -55,6 +87,13 @@ public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
      */
     @Select("SELECT * FROM chat_agent WHERE agent_id = #{agentId}")
     ChatAgentDO selectByAgentId(@Param("agentId") String agentId);
+
+    /**
+     * 根据业务线和客服ID查询客服信息
+     */
+    @Select("SELECT * FROM chat_agent WHERE business_line = #{businessLine} AND agent_id = #{agentId}")
+    ChatAgentDO selectByBusinessLineAndAgentId(@Param("businessLine") String businessLine,
+                                               @Param("agentId") String agentId);
     
     /**
      * 根据客服名称查询客服信息
@@ -95,4 +134,14 @@ public interface ChatAgentMapper extends BaseMapper<ChatAgentDO> {
             "AND current_conversations < max_concurrent_conversations " +
             "ORDER BY current_conversations ASC LIMIT 1")
     ChatAgentDO selectLeastLoadedPreSalesAgent(@Param("tenantId") Long tenantId);
+
+    /**
+     * 查询指定业务线负载最低的售前客服
+     */
+    @Select("SELECT * FROM chat_agent WHERE business_line = #{businessLine} " +
+            "AND agent_type = 'pre-sales' AND status = 'active' AND tenant_id = #{tenantId} " +
+            "AND current_conversations < max_concurrent_conversations " +
+            "ORDER BY current_conversations ASC LIMIT 1")
+    ChatAgentDO selectLeastLoadedPreSalesAgentByBusinessLine(@Param("businessLine") String businessLine,
+                                                             @Param("tenantId") Long tenantId);
 }

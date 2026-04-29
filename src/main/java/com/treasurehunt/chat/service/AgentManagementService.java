@@ -43,6 +43,22 @@ public class AgentManagementService {
             return Collections.emptySet(); // 返回空集合
         }
     }
+
+    public Set<String> getPreSalesAgentIds(String businessLine, Long tenantId) {
+        try {
+            List<ChatAgentDO> agents = chatAgentMapper.selectPreSalesAgentsByBusinessLine(businessLine, tenantId);
+            Set<String> agentIds = agents.stream()
+                    .map(ChatAgentDO::getAgentId)
+                    .collect(Collectors.toSet());
+
+            log.debug("查询售前客服(按业务线): businessLine={}, tenantId={}, agentIds={}", businessLine, tenantId, agentIds);
+            return agentIds;
+
+        } catch (Exception e) {
+            log.error("查询售前客服(按业务线)失败: businessLine={}, tenantId={}", businessLine, tenantId, e);
+            return Collections.emptySet();
+        }
+    }
     
     /**
      * 获取售后客服ID列表
@@ -63,6 +79,22 @@ public class AgentManagementService {
         } catch (Exception e) {
             log.error("查询售后客服失败: tenantId={}", tenantId, e);
             return Collections.emptySet(); // 返回空集合
+        }
+    }
+
+    public Set<String> getAfterSalesAgentIds(String businessLine, Long tenantId) {
+        try {
+            List<ChatAgentDO> agents = chatAgentMapper.selectAfterSalesAgentsByBusinessLine(businessLine, tenantId);
+            Set<String> agentIds = agents.stream()
+                    .map(ChatAgentDO::getAgentId)
+                    .collect(Collectors.toSet());
+
+            log.debug("查询售后客服(按业务线): businessLine={}, tenantId={}, agentIds={}", businessLine, tenantId, agentIds);
+            return agentIds;
+
+        } catch (Exception e) {
+            log.error("查询售后客服(按业务线)失败: businessLine={}, tenantId={}", businessLine, tenantId, e);
+            return Collections.emptySet();
         }
     }
     
@@ -86,6 +118,24 @@ public class AgentManagementService {
         } catch (Exception e) {
             log.error("查询客服失败: agentType={}, tenantId={}", agentType, tenantId, e);
             return Collections.emptySet(); // 返回空集合
+        }
+    }
+
+    public Set<String> getAgentIdsByType(String businessLine, String agentType, Long tenantId) {
+        try {
+            List<ChatAgentDO> agents = chatAgentMapper.selectByBusinessLineAndTypeAndStatus(businessLine, agentType, "active", tenantId);
+            Set<String> agentIds = agents.stream()
+                    .map(ChatAgentDO::getAgentId)
+                    .collect(Collectors.toSet());
+
+            log.debug("查询客服(按业务线): businessLine={}, agentType={}, tenantId={}, agentIds={}",
+                    businessLine, agentType, tenantId, agentIds);
+            return agentIds;
+
+        } catch (Exception e) {
+            log.error("查询客服(按业务线)失败: businessLine={}, agentType={}, tenantId={}",
+                    businessLine, agentType, tenantId, e);
+            return Collections.emptySet();
         }
     }
     
@@ -112,6 +162,24 @@ public class AgentManagementService {
             return null;
         }
     }
+
+    public String getLeastLoadedPreSalesAgent(String businessLine, Long tenantId) {
+        try {
+            ChatAgentDO agent = chatAgentMapper.selectLeastLoadedPreSalesAgentByBusinessLine(businessLine, tenantId);
+            if (agent != null) {
+                log.debug("查询负载最低的售前客服(按业务线): businessLine={}, tenantId={}, agentId={}, currentConversations={}",
+                        businessLine, tenantId, agent.getAgentId(), agent.getCurrentConversations());
+                return agent.getAgentId();
+            } else {
+                log.warn("没有可用的售前客服(按业务线): businessLine={}, tenantId={}", businessLine, tenantId);
+                return null;
+            }
+
+        } catch (Exception e) {
+            log.error("查询负载最低的售前客服(按业务线)失败: businessLine={}, tenantId={}", businessLine, tenantId, e);
+            return null;
+        }
+    }
     
     /**
      * 检查客服是否存在且活跃
@@ -126,6 +194,17 @@ public class AgentManagementService {
             
         } catch (Exception e) {
             log.error("检查客服状态失败: agentId={}", agentId, e);
+            return false;
+        }
+    }
+
+    public boolean isAgentActive(String businessLine, String agentId) {
+        try {
+            ChatAgentDO agent = chatAgentMapper.selectByBusinessLineAndAgentId(businessLine, agentId);
+            return agent != null && "active".equals(agent.getStatus());
+
+        } catch (Exception e) {
+            log.error("检查客服状态失败: businessLine={}, agentId={}", businessLine, agentId, e);
             return false;
         }
     }
