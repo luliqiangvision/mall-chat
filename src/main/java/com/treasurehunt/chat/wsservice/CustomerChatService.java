@@ -5,6 +5,7 @@ import com.treasurehunt.chat.component.manager.MessageIdManager;
 import com.treasurehunt.chat.domain.ChatConversationDO;
 import com.treasurehunt.chat.domain.ChatConversationMemberDO;
 import com.treasurehunt.chat.domain.ChatMessageDO;
+import com.treasurehunt.chat.domain.MallShopDO;
 import com.treasurehunt.chat.enums.ConversationStatusEnum;
 import com.treasurehunt.chat.framework.core.websocket.distributed.delivery.NotificationDispatcher;
 import com.treasurehunt.chat.mapper.ChatConversationMapper;
@@ -18,6 +19,7 @@ import com.treasurehunt.chat.security.WebSocketSecurityFilter;
 import com.treasurehunt.chat.service.IdempotencyService;
 import com.treasurehunt.chat.service.UserContextService;
 import com.treasurehunt.chat.service.RobotAgentService;
+import com.treasurehunt.chat.service.MallShopService;
 import com.treasurehunt.chat.component.async.ChatAsyncExecutor;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -97,6 +99,9 @@ public class CustomerChatService {
     @Autowired
     private GroupMemberCacheManager groupMemberCacheManager;
 
+    @Autowired
+    private MallShopService mallShopService;
+
     /**
      * 发送消息
      *
@@ -113,6 +118,9 @@ public class CustomerChatService {
             if (userInfo == null) {
                 throw new RuntimeException("会话中缺少用户信息");
             }
+
+            // payload 缺少 fromUserId/senderId 或 fromUserNo/senderNo 时，使用可用字段互补并兜底
+            userContextService.normalizeSenderIdentity(chatMessage, userInfo.getUserId());
 
             // 1.5. 速率限制检查
             WebSocketRateLimiter.RateLimitResult rateLimitResult = rateLimiter.checkRateLimit(userInfo.getUserId());
@@ -462,7 +470,8 @@ public class CustomerChatService {
         Set<String> memberIds = members.stream().map(ChatConversationMemberDO::getMemberId).collect(Collectors.toSet());
         if (members.isEmpty()) {
             log.debug("🎯 开始分配客服: conversationId={}, customerId={}", conversationId, customerId);
-            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false).agentId;
+            String businessLine = getBusinessLineByConversationId(conversationId);
+            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false, businessLine).agentId;
             if (assignedAgentId != null) {
                 memberIds = Collections.singleton(assignedAgentId);
             }
@@ -471,7 +480,8 @@ public class CustomerChatService {
         Boolean isOnlyCustomerAndRobot = members.size() == 2 && members.stream().anyMatch(m -> m.getMemberId().equals(customerId)) && members.stream().anyMatch(m -> m.getMemberType().equals("robot_agent"));
         if (isOnlyCustomerAndRobot) {
             log.debug("🎯 群里只剩下客户自己和机器人,重新分配客服: conversationId={}", conversationId);
-            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false).agentId;
+            String businessLine = getBusinessLineByConversationId(conversationId);
+            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false, businessLine).agentId;
             if (assignedAgentId != null) {
                 memberIds = Collections.singleton(assignedAgentId);
             }
@@ -504,6 +514,43 @@ public class CustomerChatService {
     }
 
     /**
+     * 根据会话ID获取业务线，避免跨业务线分配客服。
+     */
+    private String getBusinessLineByConversationId(String conversationId) {
+        try {
+            QueryWrapper<ChatConversationDO> query = new QueryWrapper<>();
+            query.eq("conversation_id", conversationId);
+            ChatConversationDO conversation = conversationMapper.selectOne(query);
+            if (conversation == null || conversation.getBusinessLine() == null || conversation.getBusinessLine().isEmpty()) {
+                return "default";
+            }
+            return conversation.getBusinessLine();
+        } catch (Exception e) {
+            log.warn("根据会话ID获取业务线失败，使用默认业务线: conversationId={}", conversationId, e);
+            return "default";
+        }
+    }
+
+    /**
+     * 新会话从店铺维度推导业务线，兜底使用 default。
+     */
+    private String resolveBusinessLineByShopId(Long shopId) {
+        if (shopId == null) {
+            return "default";
+        }
+        try {
+            MallShopDO shop = mallShopService.getShopById(shopId);
+            if (shop == null || shop.getBusinessLine() == null || shop.getBusinessLine().isEmpty()) {
+                return "default";
+            }
+            return shop.getBusinessLine();
+        } catch (Exception e) {
+            log.warn("根据店铺获取业务线失败，使用默认业务线: shopId={}", shopId, e);
+            return "default";
+        }
+    }
+
+    /**
      * 创建新会话并分配
      */
     private void createAndAssignNewConversation(String conversationId, Long serverMsgId, WebSocketSession session,
@@ -517,7 +564,8 @@ public class CustomerChatService {
         }
         log.debug("👤 获取到用户信息: conversationId={}, userId={}", conversationId, userInfo.getUserId());
         log.debug("🎯 开始分配客服: conversationId={}", conversationId);
-        RouteResult routeResult = agentRoutingService.assignAgents(conversationId, true);
+        String businessLine = resolveBusinessLineByShopId(shopId);
+        RouteResult routeResult = agentRoutingService.assignAgents(conversationId, true, businessLine);
         log.debug("🎯 客服分配结果: conversationId={}, agentId={}", conversationId, routeResult.agentId);
         // 创建会话记录
         log.debug("📝 准备创建会话记录: conversationId={}, customerId={}, shopId={}", conversationId, userInfo.getUserId(),shopId);
@@ -526,6 +574,7 @@ public class CustomerChatService {
         conversation.setCustomerId(userInfo.getUserId());
         conversation.setStatus(ConversationStatusEnum.WAITING.getCode());
         conversation.setTenantId(1L); // 默认租户
+        conversation.setBusinessLine(businessLine);
         conversation.setShopId(shopId);
         conversation.setAgentId(routeResult.agentId);
         conversation.setCreatedAt(new Date());

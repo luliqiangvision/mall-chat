@@ -9,6 +9,8 @@
         <result property="clientMsgId" column="client_msg_id"/>
         <result property="senderId" column="sender_id"/>
         <result property="fromUserId" column="from_user_id"/>
+        <result property="fromUserNo" column="from_user_no"/>
+        <result property="senderNo" column="sender_no"/>
         <result property="msgType" column="msg_type"/>
         <result property="content" column="content"/>
         <result property="payloadJson" column="payload_json"/>
@@ -21,23 +23,23 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+        id, conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, from_user_no, sender_no, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
     </sql>
 
     <insert id="insertOne" parameterType="com.treasurehunt.chat.domain.ChatMessageDO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO chat_message(
-            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, from_user_no, sender_no, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
         ) VALUES (
-            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
+            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{fromUserNo}, #{senderNo}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
         )
     </insert>
 
     <!-- 降级路径：若 (conversation_id, client_msg_id) 唯一键冲突，则把 server_msg_id 自增 1（牺牲幂等性） -->
     <insert id="insertOneOnDupIncr" parameterType="com.treasurehunt.chat.domain.ChatMessageDO">
         INSERT INTO chat_message(
-            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
+            conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, from_user_no, sender_no, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at
         ) VALUES (
-            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
+            #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{fromUserNo}, #{senderNo}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}
         )
         ON DUPLICATE KEY UPDATE
             server_msg_id = server_msg_id + 1,

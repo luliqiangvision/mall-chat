@@ -33,6 +33,15 @@ public class ChatMessage implements Serializable {
     
     @Schema(description = "发送者ID，如果是转发，那么这个字段就是转发人的id")
     private String senderId;
+
+    @Schema(description = "发送者工号（fromUserNo）")
+    private String fromUserNo;
+
+    @Schema(description = "发送者工号（senderNo）")
+    private String senderNo;
+
+    @Schema(description = "发送者工号（userNo），用于兼容前端升级后的冗余身份字段")
+    private String userNo;
     
     @Schema(description = "发送时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
@@ -139,6 +148,30 @@ public class ChatMessage implements Serializable {
     public void setSenderId(String senderId) {
         this.senderId = senderId;
     }
+
+    public String getFromUserNo() {
+        return fromUserNo;
+    }
+
+    public void setFromUserNo(String fromUserNo) {
+        this.fromUserNo = fromUserNo;
+    }
+
+    public String getSenderNo() {
+        return senderNo;
+    }
+
+    public void setSenderNo(String senderNo) {
+        this.senderNo = senderNo;
+    }
+
+    public String getUserNo() {
+        return userNo;
+    }
+
+    public void setUserNo(String userNo) {
+        this.userNo = userNo;
+    }
     
     public Date getTimestamp() {
         return timestamp;
@@ -199,6 +232,9 @@ public class ChatMessage implements Serializable {
                 ", content='" + content + '\'' +
                 ", fromUserId='" + fromUserId + '\'' +
                 ", senderId='" + senderId + '\'' +
+                ", fromUserNo='" + fromUserNo + '\'' +
+                ", senderNo='" + senderNo + '\'' +
+                ", userNo='" + userNo + '\'' +
                 ", timestamp=" + timestamp +
                 ", fromUsername='" + fromUsername + '\'' +
                 ", status='" + status + '\'' +

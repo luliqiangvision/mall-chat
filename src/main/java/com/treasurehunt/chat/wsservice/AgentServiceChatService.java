@@ -97,6 +97,9 @@ public class AgentServiceChatService {
             if (userInfo == null) {
                 return userContextService.buildMissingUserResponse(chatMessage);
             }
+
+            // payload 缺少 fromUserId/senderId 或 fromUserNo/senderNo 时，使用可用字段互补并兜底
+            userContextService.normalizeSenderIdentity(chatMessage, userInfo.getUserId());
             
             // 1.5. 速率限制检查
             WebSocketRateLimiter.RateLimitResult rateLimitResult = rateLimiter.checkRateLimit(userInfo.getUserId());

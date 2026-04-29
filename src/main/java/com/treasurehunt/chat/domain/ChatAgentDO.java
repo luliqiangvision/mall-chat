@@ -24,6 +24,14 @@ public class ChatAgentDO {
     @TableField("agent_id")
     private String agentId;
 
+    /** 客服工号（可空，预留字段） */
+    @TableField("agent_no")
+    private String agentNo;
+
+    /** 统一内部主体ID（IAM subject_id） */
+    @TableField("subject_id")
+    private Long subjectId;
+
     /** 客服姓名 */
     @TableField("agent_name")
     private String agentName;
@@ -61,6 +69,10 @@ public class ChatAgentDO {
     /** 多租户标识，亦即商户/店铺ID */
     @TableField("tenant_id")
     private Long tenantId;
+
+    /** 业务线标识（由网关透传 X-Business-Line） */
+    @TableField("business_line")
+    private String businessLine;
 
     /** 创建时间 */
     @TableField("created_at")

@@ -41,9 +41,9 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessageDO> {
      * 注解版降级插入：ON DUPLICATE KEY 自增 server_msg_id
      */
     @Insert("INSERT INTO chat_message(\n" +
-            "  conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at\n" +
+            "  conversation_id, server_msg_id, client_msg_id, sender_id, from_user_id, from_user_no, sender_no, msg_type, content, payload_json, hash_code, status, push_attempts, shop_id, created_at, delivered_at\n" +
             ") VALUES (\n" +
-            "  #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}\n" +
+            "  #{conversationId}, #{serverMsgId}, #{clientMsgId}, #{senderId}, #{fromUserId}, #{fromUserNo}, #{senderNo}, #{msgType}, #{content}, #{payloadJson}, #{hashCode}, #{status}, #{pushAttempts}, #{shopId}, #{createdAt}, #{deliveredAt}\n" +
             ")\n" +
             "ON DUPLICATE KEY UPDATE\n" +
             "  server_msg_id = server_msg_id + 1,\n" +

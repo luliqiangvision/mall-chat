@@ -94,6 +94,12 @@ public class AgentLoginController {
             Map<String, Object> data = new HashMap<>();
             // 客服ID
             data.put("agentId", agent.getAgentId());
+            // 客服工号（预留，可为空）
+            data.put("agentNo", agent.getAgentNo());
+            // 统一身份ID（阶段1用于跨系统身份映射）
+            data.put("subjectId", agent.getSubjectId());
+            // 当前客服默认业务线
+            data.put("businessLine", agent.getBusinessLine());
             // 对应mall-admin的username字段
             data.put("agentName", agent.getAgentName());
             // 对应mall-admin的icon字段，如果客服没有icon字段，可以设置为null或空字符串
@@ -112,6 +118,34 @@ public class AgentLoginController {
         } catch (Exception e) {
             log.error("获取当前登录客服信息失败", e);
             return CommonResult.buildError("获取客服信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 查询当前业务线下可用客服身份列表（阶段1联调接口）。
+     */
+    @Operation(summary = "查询客服身份列表")
+    @GetMapping("/identities")
+    public CommonResult<List<Map<String, Object>>> getAgentIdentities(@RequestParam Long subjectId,
+                                                                       @RequestParam String businessLine) {
+        try {
+            List<ChatAgentDO> agents = agentLoginService.listAgentIdentities(subjectId, businessLine);
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (ChatAgentDO agent : agents) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("agentId", agent.getAgentId());
+                item.put("agentNo", agent.getAgentNo());
+                item.put("subjectId", agent.getSubjectId());
+                item.put("agentName", agent.getAgentName());
+                item.put("agentType", agent.getAgentType());
+                item.put("status", agent.getStatus());
+                item.put("businessLine", agent.getBusinessLine());
+                result.add(item);
+            }
+            return CommonResult.buildSuccess(result);
+        } catch (Exception e) {
+            log.error("查询客服身份列表失败: subjectId={}, businessLine={}", subjectId, businessLine, e);
+            return CommonResult.buildError("查询客服身份列表失败: " + e.getMessage());
         }
     }
 }

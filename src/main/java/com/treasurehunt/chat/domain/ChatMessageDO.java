@@ -38,6 +38,14 @@ public class ChatMessageDO {
     @TableField("from_user_id")
     private String fromUserId;
 
+    /** 发送者工号（from_user_no，冗余字段） */
+    @TableField("from_user_no")
+    private String fromUserNo;
+
+    /** 发送者工号（sender_no，冗余字段） */
+    @TableField("sender_no")
+    private String senderNo;
+
     /** 消息类型 */
     @TableField("msg_type")
     private String msgType;
