@@ -13,6 +13,11 @@ public class CheckUnreadMessagesRequest {
      * 用户ID
      */
     private Long userId;
+
+    /**
+     * 用户编号冗余字段
+     */
+    private String userno;
     
     /**
      * 时间戳（可选，用于客户端缓存控制）

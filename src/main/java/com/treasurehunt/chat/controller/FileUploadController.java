@@ -39,7 +39,7 @@ public class FileUploadController {
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> uploadFile(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("userId") String userId,
+            @RequestHeader("X-User-Id") String userId,
             @RequestParam("toUserId") String toUserId,
             @RequestParam(value = "messageType", defaultValue = "file") String messageType) {
         
@@ -125,7 +125,7 @@ public class FileUploadController {
     @PostMapping("/upload-async")
     public ResponseEntity<Map<String, Object>> uploadFileAsync(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("userId") String userId,
+            @RequestHeader("X-User-Id") String userId,
             @RequestParam("toUserId") String toUserId) {
         
         Map<String, Object> response = new HashMap<>();

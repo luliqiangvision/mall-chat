@@ -12,4 +12,9 @@ public class CustomerConversationsRequest {
      * 用户ID
      */
     private Long userId;
+
+    /**
+     * 用户编号冗余字段
+     */
+    private String userno;
 }

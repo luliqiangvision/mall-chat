@@ -11,7 +11,7 @@ public enum ChatErrorCodeEnum implements BaseAbstactErrorCodeEnum {
 
     CHAT_BATCH_QUERY_MSG_ID_FAILED(buildErrorCode("01", "01"), "批量查询会话最新消息ID失败");
 
-    private static final String CHAT_PREFIX = MicroserviceModuleErrorPrefixEnum.CHAT.getFourDigitPrefix();
+    private static final String CHAT_PREFIX = MicroserviceModuleErrorPrefixEnum.MESSAGE_CENTER_CHAT.getFourDigitPrefix();
 
     private final String errorCode;
     private final String errorMsg;

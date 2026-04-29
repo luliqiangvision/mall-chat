@@ -15,6 +15,11 @@ public class JoinConversationRequest {
      * 客服ID
      */
     private String agentId;
+
+    /**
+     * 用户编号冗余字段
+     */
+    private String userno;
     
     /**
      * 要加入的会话ID

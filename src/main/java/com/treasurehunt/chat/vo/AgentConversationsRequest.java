@@ -12,4 +12,9 @@ public class AgentConversationsRequest {
      * 客服ID
      */
     private String agentId;
+
+    /**
+     * 用户编号冗余字段
+     */
+    private String userno;
 }

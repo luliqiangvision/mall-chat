@@ -14,6 +14,9 @@ public class ConversationCheckRequest implements Serializable {
     
     @Schema(description = "用户ID", required = true)
     private String userId;
+
+    @Schema(description = "用户编号冗余字段")
+    private String userno;
     
     @Schema(description = "店铺ID", required = true)
     private Long shopId;
