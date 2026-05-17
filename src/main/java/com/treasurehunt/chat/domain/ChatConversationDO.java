@@ -39,7 +39,7 @@ public class ChatConversationDO {
     @TableField("status")
     private String status;
 
-    /** 多租户标识，亦即商户/店铺ID */
+    /** 经营主体元数据（来自 mall_shop.tenant_id；无店铺或未配置时可为 null） */
     @TableField("tenant_id")
     private Long tenantId;
 

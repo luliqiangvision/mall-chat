@@ -1,0 +1,12 @@
+---
+description: 商城后端（mall-chat）项目开发规范（架构、日志、API、数据库等）
+alwaysApply: true
+---
+
+# 开发规范
+1. controller层不要写工具代码,它应该只写怎么调用serviceimpl层
+2. 异常要分析业务场景,一般情况下是不要吞掉,除非说为了不影响核心流程而吞掉
+3. sql语句每次都是要拼接写在modify.sql文件的最底下，按顺序来，不要插队
+4. 如果某些类不是广泛被使用到，那么就不要单独写一个类来承担某段逻辑，而是放到serviceimpl层即可
+5. sql语句不要写  IF NOT EXISTS或者IF EXISTS
+6. 如果必须使用命令行，保证不要出现中文乱码

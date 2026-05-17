@@ -74,6 +74,10 @@ public class ChatMessageDO {
     @TableField("shop_id")
     private Long shopId;
 
+    /** 业务线（冗余，落库必填） */
+    @TableField("business_line")
+    private String businessLine;
+
     /** 创建时间 */
     @TableField("created_at")
     private Date createdAt;

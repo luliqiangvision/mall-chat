@@ -162,6 +162,39 @@ public class MallShopService {
         MallShopDO shop = getShopById(shopId);
         return shop != null && "active".equals(shop.getShopStatus());
     }
+
+    /**
+     * 有 shop 进线时：校验店铺在库中的 business_line 与网关透传（已解析）的业务线是否一致。
+     * 不一致仅打 error 日志，备注后续接告警；不阻断当前链路（避免误配导致全量不可用）。
+     *
+     * @param shopId                 消息/会话上的店铺业务 ID
+     * @param gatewayBusinessLine    与 {@link BusinessLineResolver} 解析结果一致的枚举名
+     */
+    public void assertShopBusinessLineMatchesGateway(Long shopId, String gatewayBusinessLine) {
+        if (shopId == null || gatewayBusinessLine == null) {
+            return;
+        }
+        MallShopDO shop = getShopById(shopId);
+        if (shop == null) {
+            log.error(
+                    "[SHOP_ROUTING] 店铺不存在，无法与网关业务线对齐: shopId={}, gatewayBusinessLine={}, [TODO: alerting]",
+                    shopId, gatewayBusinessLine);
+            return;
+        }
+        String rawShopLine = shop.getBusinessLine();
+        if (rawShopLine == null || rawShopLine.trim().isEmpty()) {
+            log.error(
+                    "[SHOP_ROUTING] 店铺未配置 business_line，无法与网关业务线对齐: shopId={}, gatewayBusinessLine={}, [TODO: alerting]",
+                    shopId, gatewayBusinessLine);
+            return;
+        }
+        String shopLine = rawShopLine.trim();
+        if (!gatewayBusinessLine.equals(shopLine)) {
+            log.error(
+                    "[SHOP_BUSINESS_LINE_MISMATCH] 网关 X-Business-Line 与 mall_shop.business_line 不一致: shopId={}, gatewayBusinessLine={}, shopBusinessLine(raw)={}, tenantId={}, [TODO: alerting]",
+                    shopId, gatewayBusinessLine, rawShopLine, shop.getTenantId());
+        }
+    }
 }
 
 

@@ -140,6 +140,8 @@ public class CustomerChatService {
             // 1.7. 过滤消息内容（清理恶意内容）
             String filteredContent = securityFilter.filterMessage(chatMessage.getContent());
             chatMessage.setContent(filteredContent);
+            // 1.8. 业务线必填（落库冗余 chat_message.business_line）
+            userContextService.applyBusinessLineForPersist(session, chatMessage);
             // 2.x 幂等性（优先 Redis，失败回退 MySQL）
             IdempotencyCheckResult idem = idempotencyService.checkBeforePersist(chatMessage.getConversationId(),
                     chatMessage.getClientMsgId());
@@ -403,6 +405,11 @@ public class CustomerChatService {
      */
     private void handleConversation(String conversationId, Long serverMsgId, WebSocketSession session, Long shopId) {
         log.debug("🔍 开始处理客户会话: conversationId={}, serverMsgId={}, shopId={}", conversationId, serverMsgId, shopId);
+        String businessLine = resolveBusinessLineForConversationHandling(session, conversationId);
+        if (businessLine == null) {
+            log.warn("无业务线，跳过会话分配与客服推送: conversationId={}", conversationId);
+            return;
+        }
         try {
             // 1. 检查会话是否已存在
             log.debug("📋 检查会话是否已存在: conversationId={}", conversationId);
@@ -417,11 +424,11 @@ public class CustomerChatService {
                         .fromCode(existingConversation.getStatus());
                 boolean needActivation = currentStatus != null && !currentStatus.isActive();
                 log.debug("🔄 会话激活检查: conversationId={}, needActivation={}", conversationId, needActivation);
-                activateExistingConversation(conversationId, serverMsgId, needActivation, shopId);
+                activateExistingConversation(conversationId, serverMsgId, needActivation, shopId, businessLine);
             } else {
                 log.debug("🆕 会话不存在，需要创建新会话: conversationId={}", conversationId);
                 // 会话不存在 - 创建新会话并分配
-                createAndAssignNewConversation(conversationId, serverMsgId, session, shopId);
+                createAndAssignNewConversation(conversationId, serverMsgId, session, shopId, businessLine);
             }
             log.debug("✅ 客户会话处理完成: conversationId={}", conversationId);
         } catch (Exception e) {
@@ -438,7 +445,7 @@ public class CustomerChatService {
      * @param needActivation 是否需要激活会话状态（从waiting/closed等状态激活为active）
      */
     private void activateExistingConversation(String conversationId, Long serverMsgId, boolean needActivation,
-            Long shopId) {
+            Long shopId, String businessLineForRoute) {
         log.debug("🔄 开始处理已存在会话: conversationId={}, serverMsgId={}, needActivation={}", conversationId, serverMsgId,
                 needActivation);
         // 如果需要激活，更新会话状态为active
@@ -465,13 +472,17 @@ public class CustomerChatService {
         // 需要获取发送者ID（客户ID）
         log.debug("获取客户会话ID: conversationId={}", conversationId);
         String customerId = getCustomerIdByConversationId(conversationId);
+        QueryWrapper<ChatConversationDO> convQuery = new QueryWrapper<>();
+        convQuery.eq("conversation_id", conversationId);
+        ChatConversationDO convRow = conversationMapper.selectOne(convQuery);
+        Long routeShopId = convRow != null ? convRow.getShopId() : shopId;
         // 当前类是处理客户发送过来的消息，如果整个群异常了,连客户自己都不在群里了,需要重新分配客服
         List<ChatConversationMemberDO> members = groupMemberCacheManager.getGroupMembers(conversationId);
         Set<String> memberIds = members.stream().map(ChatConversationMemberDO::getMemberId).collect(Collectors.toSet());
         if (members.isEmpty()) {
             log.debug("🎯 开始分配客服: conversationId={}, customerId={}", conversationId, customerId);
-            String businessLine = getBusinessLineByConversationId(conversationId);
-            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false, businessLine).agentId;
+            String assignedAgentId = agentRoutingService
+                    .assignAgents(conversationId, false, businessLineForRoute, routeShopId).agentId;
             if (assignedAgentId != null) {
                 memberIds = Collections.singleton(assignedAgentId);
             }
@@ -480,8 +491,8 @@ public class CustomerChatService {
         Boolean isOnlyCustomerAndRobot = members.size() == 2 && members.stream().anyMatch(m -> m.getMemberId().equals(customerId)) && members.stream().anyMatch(m -> m.getMemberType().equals("robot_agent"));
         if (isOnlyCustomerAndRobot) {
             log.debug("🎯 群里只剩下客户自己和机器人,重新分配客服: conversationId={}", conversationId);
-            String businessLine = getBusinessLineByConversationId(conversationId);
-            String assignedAgentId = agentRoutingService.assignAgents(conversationId, false, businessLine).agentId;
+            String assignedAgentId = agentRoutingService
+                    .assignAgents(conversationId, false, businessLineForRoute, routeShopId).agentId;
             if (assignedAgentId != null) {
                 memberIds = Collections.singleton(assignedAgentId);
             }
@@ -489,7 +500,7 @@ public class CustomerChatService {
         log.debug("🎯 客服分配结果: conversationId={}, memberIds={}", conversationId, memberIds);
         log.debug("📤 推送消息给客服: conversationId={}, serverMsgId={}", conversationId, serverMsgId);
         notificationDispatcher.dispatch(conversationId, serverMsgId, customerId, memberIds);
-        // 同时抄送给机器人
+        // 机器人即时侧反馈（见 createAndAssignNewConversation 处说明）
         log.debug("🤖 同时抄送给机器人: conversationId={}", conversationId);
         robotAgentService.sendAutoReplyMessage(conversationId, serverMsgId, customerId, shopId);
         log.debug("✅ 已存在会话处理完成: conversationId={}", conversationId);
@@ -514,47 +525,17 @@ public class CustomerChatService {
     }
 
     /**
-     * 根据会话ID获取业务线，避免跨业务线分配客服。
+     * 解析业务线：优先会话表，其次握手透传；均无则返回 null（不分配客服）。
      */
-    private String getBusinessLineByConversationId(String conversationId) {
-        try {
-            QueryWrapper<ChatConversationDO> query = new QueryWrapper<>();
-            query.eq("conversation_id", conversationId);
-            ChatConversationDO conversation = conversationMapper.selectOne(query);
-            if (conversation == null || conversation.getBusinessLine() == null || conversation.getBusinessLine().isEmpty()) {
-                return "default";
-            }
-            return conversation.getBusinessLine();
-        } catch (Exception e) {
-            log.warn("根据会话ID获取业务线失败，使用默认业务线: conversationId={}", conversationId, e);
-            return "default";
-        }
+    private String resolveBusinessLineForConversationHandling(WebSocketSession session, String conversationId) {
+        return userContextService.resolveBusinessLineForMessage(session, conversationId);
     }
 
     /**
-     * 新会话从店铺维度推导业务线，兜底使用 default。
-     */
-    private String resolveBusinessLineByShopId(Long shopId) {
-        if (shopId == null) {
-            return "default";
-        }
-        try {
-            MallShopDO shop = mallShopService.getShopById(shopId);
-            if (shop == null || shop.getBusinessLine() == null || shop.getBusinessLine().isEmpty()) {
-                return "default";
-            }
-            return shop.getBusinessLine();
-        } catch (Exception e) {
-            log.warn("根据店铺获取业务线失败，使用默认业务线: shopId={}", shopId, e);
-            return "default";
-        }
-    }
-
-    /**
-     * 创建新会话并分配
+     * 创建新会话并分配：业务线必须为 WebSocket 握手透传的 X-Business-Line（无默认）；有 shopId 时与 mall_shop.business_line 对齐校验；tenant_id 仅来自店铺元数据，无店或店铺无 tenant 则为 null（无默认 1）。
      */
     private void createAndAssignNewConversation(String conversationId, Long serverMsgId, WebSocketSession session,
-            Long shopId) {
+            Long shopId, String gatewayBusinessLine) {
         log.debug("🆕 开始创建新会话: conversationId={}, serverMsgId={}, shopId={}", conversationId, serverMsgId, shopId);
         // 从WebSocketUserInfo中获取真实客户信息
         WebSocketUserInfo userInfo = userContextService.getUserInfo(session);
@@ -563,9 +544,22 @@ public class CustomerChatService {
             return;
         }
         log.debug("👤 获取到用户信息: conversationId={}, userId={}", conversationId, userInfo.getUserId());
-        log.debug("🎯 开始分配客服: conversationId={}", conversationId);
-        String businessLine = resolveBusinessLineByShopId(shopId);
-        RouteResult routeResult = agentRoutingService.assignAgents(conversationId, true, businessLine);
+        if (gatewayBusinessLine == null || gatewayBusinessLine.trim().isEmpty()) {
+            log.error("❌ 创建新会话失败：缺少业务线, conversationId={}, userId={}",
+                    conversationId, userInfo.getUserId());
+            return;
+        }
+        Long routeTenantId = null;
+        if (shopId != null) {
+            mallShopService.assertShopBusinessLineMatchesGateway(shopId, gatewayBusinessLine);
+            MallShopDO shop = mallShopService.getShopById(shopId);
+            if (shop != null) {
+                routeTenantId = shop.getTenantId();
+            }
+        }
+        log.debug("🎯 开始分配客服: conversationId={}, businessLine={}, shopId={}", conversationId,
+                gatewayBusinessLine, shopId);
+        RouteResult routeResult = agentRoutingService.assignAgents(conversationId, true, gatewayBusinessLine, shopId);
         log.debug("🎯 客服分配结果: conversationId={}, agentId={}", conversationId, routeResult.agentId);
         // 创建会话记录
         log.debug("📝 准备创建会话记录: conversationId={}, customerId={}, shopId={}", conversationId, userInfo.getUserId(),shopId);
@@ -573,8 +567,8 @@ public class CustomerChatService {
         conversation.setConversationId(conversationId);
         conversation.setCustomerId(userInfo.getUserId());
         conversation.setStatus(ConversationStatusEnum.WAITING.getCode());
-        conversation.setTenantId(1L); // 默认租户
-        conversation.setBusinessLine(businessLine);
+        conversation.setTenantId(routeTenantId);
+        conversation.setBusinessLine(gatewayBusinessLine);
         conversation.setShopId(shopId);
         conversation.setAgentId(routeResult.agentId);
         conversation.setCreatedAt(new Date());
@@ -590,11 +584,14 @@ public class CustomerChatService {
         // 创建群聊成员记录（批量添加客户和客服）
         List<ChatConversationMemberDO> members = new ArrayList<>();
         if (routeResult.agentId != null) {
-            members.addAll(Conver.toGroupMembers(Collections.singletonList(routeResult.agentId), conversationId, "agent"));
+            members.addAll(Conver.toGroupMembers(Collections.singletonList(routeResult.agentId), conversationId, "agent",
+                    gatewayBusinessLine));
         }
-        members.addAll(Conver.toGroupMembers(Collections.singletonList(userInfo.getUserId()), conversationId, "customer"));
+        members.addAll(Conver.toGroupMembers(Collections.singletonList(userInfo.getUserId()), conversationId, "customer",
+                gatewayBusinessLine));
         // 把机器人也加进去,暂定它的id为666666
-        members.addAll(Conver.toGroupMembers(Collections.singletonList("666666"), conversationId, "robot_agent"));
+        members.addAll(Conver.toGroupMembers(Collections.singletonList("666666"), conversationId, "robot_agent",
+                gatewayBusinessLine));
         if (!members.isEmpty()) {
             groupMemberCacheManager.addGroupMembers(conversationId, members);
             log.debug("✅ 批量添加群聊成员成功: conversationId={}, 成员数量={}", conversationId, members.size());
@@ -604,7 +601,7 @@ public class CustomerChatService {
         // 新会话创建：使用统一的消息分发接口
         Set<String> agentIdsForDispatch = routeResult.agentId != null ? Collections.singleton(routeResult.agentId) : Collections.emptySet();
         notificationDispatcher.dispatch(conversationId, serverMsgId, userInfo.getUserId(), agentIdsForDispatch);
-        // 同时抄送给机器人
+        // 机器人即时侧反馈（忙碌/非工时）；不读取 RouteResult.hasAssignedHumanAgent，在分配流程之后调用
         log.debug("🤖 同时抄送给机器人: conversationId={}", conversationId);
         robotAgentService.sendAutoReplyMessage(conversationId, serverMsgId, userInfo.getUserId(), shopId);
         log.debug("✅ 新会话创建完成: conversationId={}", conversationId);

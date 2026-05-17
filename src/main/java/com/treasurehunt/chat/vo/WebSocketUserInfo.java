@@ -25,6 +25,12 @@ public class WebSocketUserInfo implements Serializable {
     
     @Schema(description = "头像")
     private String icon;
+
+    /**
+     * 业务线（网关 WebSocket 握手透传 X-Business-Line，与 HTTP 一致；值为 {@link com.treasurehunt.chat.utils.BusinessLineResolver} 解析后的枚举名）
+     */
+    @Schema(description = "业务线标识")
+    private String businessLine;
     
     private static final long serialVersionUID = 1L;
     
@@ -39,6 +45,13 @@ public class WebSocketUserInfo implements Serializable {
         this.userId = userId;
         this.userType = userType;
         this.username = username;
+    }
+
+    public WebSocketUserInfo(String userId, String userType, String username, String businessLine) {
+        this.userId = userId;
+        this.userType = userType;
+        this.username = username;
+        this.businessLine = businessLine;
     }
     
     // Getters and Setters
@@ -81,6 +94,14 @@ public class WebSocketUserInfo implements Serializable {
     public void setIcon(String icon) {
         this.icon = icon;
     }
+
+    public String getBusinessLine() {
+        return businessLine;
+    }
+
+    public void setBusinessLine(String businessLine) {
+        this.businessLine = businessLine;
+    }
     
     @Override
     public String toString() {
@@ -90,6 +111,7 @@ public class WebSocketUserInfo implements Serializable {
                 ", username='" + username + '\'' +
                 ", nickname='" + nickname + '\'' +
                 ", icon='" + icon + '\'' +
+                ", businessLine='" + businessLine + '\'' +
                 '}';
     }
 }

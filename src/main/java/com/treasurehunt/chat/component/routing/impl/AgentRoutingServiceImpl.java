@@ -1,10 +1,14 @@
 package com.treasurehunt.chat.component.routing.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.treasurehunt.chat.domain.ChatConversationDO;
 import com.treasurehunt.chat.domain.ChatConversationMemberDO;
+import com.treasurehunt.chat.mapper.ChatConversationMapper;
 import com.treasurehunt.chat.mapper.ChatConversationMemberMapper;
 import com.treasurehunt.chat.component.manager.ChatWindowManager;
 import com.treasurehunt.chat.service.AgentManagementService;
+import com.treasurehunt.chat.service.ConversationService;
 import com.treasurehunt.chat.component.routing.AgentRoutingService;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -35,11 +39,17 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	@Autowired
 	private AgentManagementService agentManagementService;
 
+	@Autowired
+	private ChatConversationMapper conversationMapper;
+
+	@Autowired
+	private ConversationService conversationService;
+
 	/**
 	 * 为聊天窗口分配客服（群聊模式）,这个方法目前只做数据库层面上的绑定,缓存没有实现,以后看情况是否要实现,抄送的功能不在这里,这里只管分配
 	 * 
 	 * 场景1：新聊天窗口创建
-	 * 聊天窗口不存在 → 分配给售前客服
+	 * 聊天窗口不存在 → 有店走店铺售前池（优先在线，否则离线售前，不走 corporate）；无店走公司级（{@code corporate}）
 	 * 同时抄送给机器人
 	 * 
 	 * 场景2：已存在聊天窗口，客服还在群里
@@ -47,61 +57,78 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 	 * 同时抄送给机器人
 	 * 
 	 * 场景3：已存在聊天窗口，所有客服都退群了
-	 * 聊天窗口存在，但 chat_conversation_member 中没有人类客服了 → 分配给售前客服
+	 * 聊天窗口存在，但 chat_conversation_member 中没有人类客服了 → 同场景1规则重新绑定
 	 * 同时抄送给机器人
 	 */
 	@Override
-	public RouteResult assignAgents(String conversationId, boolean isNewConversation, String businessLine) {
+	public RouteResult assignAgents(String conversationId, boolean isNewConversation, String businessLine,
+			Long shopId) {
 		if (conversationId == null || conversationId.isEmpty()) {
 			log.warn("conversationId is null/empty");
 			return new RouteResult(null, false);
 		}
-		String resolvedBusinessLine = (businessLine == null || businessLine.isEmpty()) ? "default" : businessLine;
+		if (businessLine == null || businessLine.isEmpty()) {
+			log.warn("业务线为空，无法分配客服: conversationId={}", conversationId);
+			return new RouteResult(null, false);
+		}
+		String resolvedBusinessLine = businessLine.trim();
 
 		// 场景1：新会话创建
 		if (isNewConversation) {
-			return assignPreSalesAgentsWithFallback(conversationId, resolvedBusinessLine);
+			return bindInboundAgent(conversationId, resolvedBusinessLine, shopId);
 		}
-		
+
 		// 场景2&3：已存在会话
-		return assignExistingOrPreSalesAgents(conversationId, resolvedBusinessLine);
+		return assignExistingOrPreSalesAgents(conversationId, resolvedBusinessLine, shopId);
 	}
 
 	/**
-	 * 场景1：新聊天窗口创建 - 分配给售前客服（只分配一个）
+	 * 新会话或场景3：有店仅店铺售前池；无店公司级池。绑定群成员并同步主接待 {@code agent_id}。
 	 */
-	private RouteResult assignPreSalesAgentsWithFallback(String conversationId, String businessLine) {
-		log.info("场景1：新会话创建，分配给售前客服: conversationId={}, businessLine={}", conversationId, businessLine);
-		
-		// 1. 获取负载最低的售前客服（只分配一个）
-		Long tenantId = 1L; // 默认使用租户ID为1，实际项目中可以从上下文获取
-		String preSalesAgentId = agentManagementService.getLeastLoadedPreSalesAgent(businessLine, tenantId);
-		
-		// 这里是防御式编程,一般肯定是有首先客服的账号的
-		if (preSalesAgentId == null || preSalesAgentId.isEmpty()) {
-			log.warn("没有售前客服，直接给机器人: conversationId={}", conversationId);
+	private RouteResult bindInboundAgent(String conversationId, String businessLine, Long shopId) {
+		log.info("客户进线分配: conversationId={}, businessLine={}, shopId={}", conversationId, businessLine, shopId);
+
+		String agentId = agentManagementService.resolveLeastLoadedAgentForCustomerRouting(businessLine, shopId);
+
+		if (agentId == null || agentId.isEmpty()) {
+			if (shopId != null) {
+				log.error(
+						"[SHOP_AGENT_ROUTING] 有店进线未分配到主接待（常见原因见 [SHOP_PRE_SALES_POOL_EMPTY]）: conversationId={}, businessLine={}, shopId={}, [TODO: alerting]",
+						conversationId, businessLine, shopId);
+			} else {
+				log.warn("无可用客服(无 shopId，公司级池为空): conversationId={}, businessLine={}", conversationId,
+						businessLine);
+			}
 			return new RouteResult(null, false);
 		}
-		
-		// 2. 绑定售前客服到聊天窗口（只绑定一个）
-		chatWindowManager.bindAgents(conversationId, Collections.singletonList(preSalesAgentId));
-		
-		log.info("场景1：已绑定售前客服: conversationId={}, agentId={}", conversationId, preSalesAgentId);
-		
-		// 3. 返回售前客服（不管是否在线，都推送给售前客服，同时抄送给机器人）
-		return new RouteResult(preSalesAgentId, true);
+
+		chatWindowManager.bindAgents(conversationId, Collections.singletonList(agentId));
+		syncConversationPrimaryAgent(conversationId, agentId);
+
+		log.info("已绑定客服: conversationId={}, agentId={}", conversationId, agentId);
+
+		return new RouteResult(agentId, true);
+	}
+
+	private void syncConversationPrimaryAgent(String conversationId, String agentId) {
+		UpdateWrapper<ChatConversationDO> updateWrapper = new UpdateWrapper<>();
+		updateWrapper.eq("conversation_id", conversationId)
+				.set("agent_id", agentId)
+				.set("updated_at", new Date());
+		conversationMapper.update(null, updateWrapper);
 	}
 
 	/**
 	 * 场景2&3：已存在会话 - 检查现有客服或分配新客服
 	 */
-	private RouteResult assignExistingOrPreSalesAgents(String conversationId, String businessLine) {
+	private RouteResult assignExistingOrPreSalesAgents(String conversationId, String businessLine, Long shopId) {
 		// 1. 查询现有客服成员
 		QueryWrapper<ChatConversationMemberDO> memberQuery = new QueryWrapper<>();
 		memberQuery.eq("conversation_id", conversationId)
+				   .eq("business_line", businessLine)
 				   .eq("member_type", "agent")
 				   .isNull("left_at");
-		
+
 		List<ChatConversationMemberDO> members = conversationMemberMapper.selectList(memberQuery);
 		
 		if (!members.isEmpty()) {
@@ -110,13 +137,12 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 			
 			log.info("场景2：客服还在群里，推送给群成员: conversationId={}, agentId={}", conversationId, firstAgentId);
 			
-			// 返回第一个客服ID（不管是否在线，都推送给现有客服，同时抄送给机器人）
 			return new RouteResult(firstAgentId, true);
 		}
 		
-		// 场景3：所有客服都退群了，分配给售前客服
-		log.info("场景3：所有客服都退群了，分配给售前客服: conversationId={}", conversationId);
-		return assignPreSalesAgentsWithFallback(conversationId, businessLine);
+		// 场景3：所有客服都退群了，按店铺/公司级重新分配
+		log.info("场景3：所有客服都退群了，重新分配客服: conversationId={}", conversationId);
+		return bindInboundAgent(conversationId, businessLine, shopId);
 	}
 
 	/**
@@ -146,8 +172,11 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 		}
 
 		// 2) 缓存miss，查数据库
+		String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+
 		QueryWrapper<ChatConversationMemberDO> check = new QueryWrapper<>();
 		check.eq("conversation_id", conversationId)
+				.eq("business_line", businessLine)
 				.eq("member_type", "agent")
 				.isNull("left_at");
 
@@ -171,6 +200,7 @@ public class AgentRoutingServiceImpl implements AgentRoutingService {
 		member.setMemberId(agentId);
 		member.setJoinedAt(new Date());
 		member.setLeftAt(null);
+		conversationService.enrichMemberBusinessLine(member);
 
 		int inserted = conversationMemberMapper.insert(member);
 		boolean success = inserted > 0;

@@ -1,5 +1,6 @@
 package com.treasurehunt.chat.controller;
 
+import com.treasurehunt.chat.context.ChatRequestContext;
 import com.treasurehunt.chat.service.ConversationService;
 import com.treasurehunt.chat.httpservice.CustomerHttpService;
 import com.treasurehuntshop.mall.common.api.commonUtil.CommonResult;
@@ -16,7 +17,6 @@ import com.treasurehunt.chat.vo.ConversationViewVO;
 import com.treasurehunt.chat.vo.ChatMessagesInitResult;
 import com.treasurehunt.chat.vo.ChatmessageWithPaged;
 import com.treasurehunt.chat.vo.MarkAsReadRequest;
-import com.treasurehunt.chat.utils.BusinessLineResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +24,8 @@ import java.util.Map;
 
 /**
  * 客户聊天HTTP接口控制器
- * 处理客户登录时需要同步查询的接口
+ * 业务线由 {@link com.treasurehunt.chat.config.ChatRequestContextInterceptor} 从请求头
+ * {@code X-Business-Line} 解析（与 mall-portal、客服 HTTP 一致）。
  */
 @Slf4j
 @RestController
@@ -34,19 +35,15 @@ public class CustomerHpptController {
     @Autowired
     private CustomerHttpService customerHttpService;
 
-    /**
-     * 客户检查未读消息
-     * 
-     * @param request 检查未读消息请求
-     * @return 未读消息检查结果
-     */
+    @Autowired
+    private ConversationService conversationService;
+
     @PostMapping("/checkUnreadMessages")
     public CommonResult<CheckUnreadMessagesResponse> checkUnreadMessages(@RequestBody CheckUnreadMessagesRequest request,
-                                                                         @RequestHeader("X-User-Id") String userId,
-                                                                         @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                         @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户检查未读消息请求: userId={}, businessLine={}, request={}", userId, businessLine, request);
-        
+
         try {
             CheckUnreadMessagesResponse response = customerHttpService.checkUnreadMessages(Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(response);
@@ -56,19 +53,12 @@ public class CustomerHpptController {
         }
     }
 
-    /**
-     * 客户获取会话列表
-     * 
-     * @param request 请求参数
-     * @return 会话列表
-     */
     @PostMapping("/listConversations")
     public CommonResult<CheckUnreadMessagesResponse> getConversations(@RequestBody CustomerConversationsRequest request,
-                                                                      @RequestHeader("X-User-Id") String userId,
-                                                                      @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                      @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户获取会话列表请求: userId={}, businessLine={}", userId, businessLine);
-        
+
         try {
             CheckUnreadMessagesResponse response = customerHttpService.checkUnreadMessages(Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(response);
@@ -78,19 +68,12 @@ public class CustomerHpptController {
         }
     }
 
-    /**
-     * 获取聊天窗口列表
-     * 
-     * @param request 获取聊天窗口列表请求
-     * @return 会话视图Map
-     */
     @PostMapping("/getChatWindowList")
     public CommonResult<Map<String, ConversationViewVO>> getChatWindowList(@RequestBody InitConversationViewRequest request,
-                                                                            @RequestHeader("X-User-Id") String userId,
-                                                                            @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                            @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户获取聊天窗口列表请求: userId={}, businessLine={}", userId, businessLine);
-        
+
         try {
             Map<String, ConversationViewVO> response = customerHttpService.getChatWindowList(Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(response);
@@ -100,36 +83,21 @@ public class CustomerHpptController {
         }
     }
 
-    @Autowired
-    private ConversationService conversationService;
-
-    /**
-     * 会话预检接口
-     * 检查用户在指定店铺是否有历史会话
-     */
     @PostMapping("/check")
     public CommonResult<ConversationCheckResponse> checkConversation(@RequestBody ConversationCheckRequest request,
-                                                                     @RequestHeader("X-User-Id") String userId,
-                                                                     @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                     @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         request.setUserId(userId);
         log.debug("收到会话预检请求: businessLine={}, request={}", businessLine, request);
         return CommonResult.buildSuccess(conversationService.checkConversation(request, businessLine));
     }
 
-    /**
-     * 客户分页拉取历史消息
-     * 
-     * @param request 分页拉取请求
-     * @return 分页消息结果
-     */
     @PostMapping("/pullMessageWithPagedQuery")
     public CommonResult<ChatmessageWithPaged> pullMessageWithPagedQuery(@RequestBody CustomerPullMessageWithPagedQueryRequest request,
-                                                                         @RequestHeader("X-User-Id") String userId,
-                                                                         @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                         @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户分页拉取消息请求: userId={}, businessLine={}, request={}", userId, businessLine, request);
-        
+
         try {
             ChatmessageWithPaged response = customerHttpService.pullMessageWithPagedQuery(request, Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(response);
@@ -139,16 +107,10 @@ public class CustomerHpptController {
         }
     }
 
-    /**
-     * 根据conversationId初始化聊天窗口
-     * 入参：conversationId，用户ID从请求头 X-User-Id 读取
-     * 规则：全部未读 + 未读最小ID之前5条；若无未读则最近10条
-     */
     @PostMapping("/initChatWindowByConversationId")
     public CommonResult<ChatMessagesInitResult> initChatWindowByConversationId(@RequestBody String conversationId,
-                                                                                @RequestHeader("X-User-Id") String userId,
-                                                                                @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                                @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("根据conversationId初始化聊天窗口: userId={}, businessLine={}, conversationId={}", userId, businessLine, conversationId);
         try {
             ChatMessagesInitResult resp = customerHttpService.initChatWindowByConversationId(conversationId, Long.valueOf(userId), businessLine);
@@ -159,20 +121,12 @@ public class CustomerHpptController {
         }
     }
 
-    /**
-     * 检查缺失的消息
-     * 
-     * @param request 检查缺失消息请求
-     * @param userId 用户ID
-     * @return 缺失消息响应
-     */
     @PostMapping("/checkMissingMessages")
     public CommonResult<CheckMissingMessagesResponse> checkMissingMessages(@RequestBody CheckMissingMessagesRequest request,
-                                                                           @RequestHeader("X-User-Id") String userId,
-                                                                           @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                                                           @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户检查缺失消息请求: userId={}, businessLine={}, request={}", userId, businessLine, request);
-        
+
         try {
             CheckMissingMessagesResponse response = customerHttpService.checkMissingMessages(request, Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(response);
@@ -182,20 +136,12 @@ public class CustomerHpptController {
         }
     }
 
-    /**
-     * 标记已读
-     * 
-     * @param request 标记已读请求
-     * @param userId 用户ID
-     * @return 是否成功
-     */
     @PostMapping("/markAsRead")
     public CommonResult<Boolean> markAsRead(@RequestBody MarkAsReadRequest request,
-                                            @RequestHeader("X-User-Id") String userId,
-                                            @RequestHeader(value = "X-Business-Line", required = false) String businessLineHeader) {
-        String businessLine = BusinessLineResolver.resolve(businessLineHeader);
+                                            @RequestHeader("X-User-Id") String userId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         log.debug("处理客户标记已读请求: userId={}, businessLine={}, request={}", userId, businessLine, request);
-        
+
         try {
             boolean result = customerHttpService.markAsRead(request, Long.valueOf(userId), businessLine);
             return CommonResult.buildSuccess(result);

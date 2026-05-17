@@ -61,6 +61,9 @@ public class ChatMessage implements Serializable {
 
     @Schema(description = "店铺ID")
     private Long shopId;
+
+    @Schema(description = "业务线（与网关 X-Business-Line 一致，落库必填）")
+    private String businessLine;
     
     private static final long serialVersionUID = 1L;
     
@@ -221,6 +224,14 @@ public class ChatMessage implements Serializable {
     public void setShopId(Long shopId) {
         this.shopId = shopId;
     }
+
+    public String getBusinessLine() {
+        return businessLine;
+    }
+
+    public void setBusinessLine(String businessLine) {
+        this.businessLine = businessLine;
+    }
     
     @Override
     public String toString() {
@@ -241,6 +252,7 @@ public class ChatMessage implements Serializable {
                 ", uiState='" + uiState + '\'' +
                 ", payload=" + payload +
                 ", shopId=" + shopId +
+                ", businessLine='" + businessLine + '\'' +
                 '}';
     }
 }

@@ -62,6 +62,9 @@ public final class Conver {
         if (chatMessage.getShopId() != null) {
             builder.shopId(chatMessage.getShopId());
         }
+        if (chatMessage.getBusinessLine() != null) {
+            builder.businessLine(chatMessage.getBusinessLine());
+        }
         if (chatMessage.getPayload() != null) {
             try {
                 builder.payloadJson(OBJECT_MAPPER.writeValueAsString(chatMessage.getPayload()));
@@ -105,7 +108,9 @@ public final class Conver {
         message.setType(messageDO.getMsgType());
         message.setContent(messageDO.getContent());
         message.setStatus(messageDO.getStatus());
-        
+        message.setShopId(messageDO.getShopId());
+        message.setBusinessLine(messageDO.getBusinessLine());
+
         // 设置时间戳
         if (messageDO.getCreatedAt() != null) {
             message.setTimestamp(messageDO.getCreatedAt());
@@ -183,19 +188,28 @@ public final class Conver {
      * @param conversationId 会话ID
      * @return 群聊成员DO对象列表
      */
-    public static List<ChatConversationMemberDO> toGroupMembers(Collection<String> memberIds, String conversationId,String memberType) {
+    public static List<ChatConversationMemberDO> toGroupMembers(Collection<String> memberIds, String conversationId,
+                                                                String memberType) {
+        return toGroupMembers(memberIds, conversationId, memberType, null);
+    }
+
+    public static List<ChatConversationMemberDO> toGroupMembers(Collection<String> memberIds, String conversationId,
+                                                                String memberType, String businessLine) {
         List<ChatConversationMemberDO> members = new ArrayList<>();
-        
+
         if (memberIds == null || memberIds.isEmpty()) {
             return members;
         }
 
+        String resolvedBusinessLine = businessLine != null ? businessLine.trim() : null;
         Date joinedAt = new Date();
         for (String memberId : memberIds) {
             if (memberId != null && !memberId.isEmpty()) {
                 ChatConversationMemberDO member = new ChatConversationMemberDO();
                 member.setConversationId(conversationId);
-                // 不区分客户和客服，统一设置为member类型
+                if (resolvedBusinessLine != null && !resolvedBusinessLine.isEmpty()) {
+                    member.setBusinessLine(resolvedBusinessLine);
+                }
                 member.setMemberType(memberType);
                 member.setMemberId(memberId);
                 member.setJoinedAt(joinedAt);

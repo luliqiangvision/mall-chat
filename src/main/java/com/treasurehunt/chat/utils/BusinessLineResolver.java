@@ -11,9 +11,10 @@ public final class BusinessLineResolver {
     }
 
     public static String resolve(String rawBusinessLine) {
-        String candidate = (rawBusinessLine == null || rawBusinessLine.trim().isEmpty())
-                ? BusinessIdentifierEnum.TREASURE_HUNT_SHOP.name()
-                : rawBusinessLine.trim();
+        if (rawBusinessLine == null || rawBusinessLine.trim().isEmpty()) {
+            throw new IllegalArgumentException("缺少业务线（买家须由网关透传 X-Business-Line；登录/identities 须传 businessLine 头）");
+        }
+        String candidate = rawBusinessLine.trim();
         try {
             return BusinessIdentifierEnum.valueOf(candidate).name();
         } catch (IllegalArgumentException ex) {

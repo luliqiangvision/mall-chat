@@ -1,14 +1,20 @@
 package com.treasurehunt.chat.service;
 
-
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.treasurehunt.chat.domain.ChatConversationDO;
+import com.treasurehunt.chat.mapper.ChatConversationMapper;
 import com.treasurehunt.chat.vo.ChatMessage;
 import com.treasurehunt.chat.vo.ReplySendMessageResult;
 import com.treasurehunt.chat.vo.WebSocketUserInfo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
 @Component
 public class UserContextService {
+
+    @Autowired
+    private ChatConversationMapper conversationMapper;
 
     public WebSocketUserInfo getUserInfo(WebSocketSession session) {
         Object val = session.getAttributes().get("userInfo");
@@ -28,6 +34,41 @@ public class UserContextService {
             .build();
 
         return result;
+    }
+
+    /**
+     * 解析消息落库所需业务线：已有会话优先 {@code chat_conversation.business_line}，否则握手 {@code WebSocketUserInfo.businessLine}。
+     */
+    public String resolveBusinessLineForMessage(WebSocketSession session, String conversationId) {
+        if (hasText(conversationId)) {
+            QueryWrapper<ChatConversationDO> query = new QueryWrapper<>();
+            query.eq("conversation_id", conversationId);
+            ChatConversationDO conversation = conversationMapper.selectOne(query);
+            if (conversation != null && hasText(conversation.getBusinessLine())) {
+                return conversation.getBusinessLine().trim();
+            }
+        }
+        WebSocketUserInfo userInfo = getUserInfo(session);
+        if (userInfo != null && hasText(userInfo.getBusinessLine())) {
+            return userInfo.getBusinessLine().trim();
+        }
+        return null;
+    }
+
+    /**
+     * 落库前写入并校验业务线；缺失则拒绝保存消息。
+     */
+    public void applyBusinessLineForPersist(WebSocketSession session, ChatMessage chatMessage) {
+        if (chatMessage == null) {
+            throw new RuntimeException("缺少业务线，消息无法保存");
+        }
+        String resolved = firstNonBlank(
+                resolveBusinessLineForMessage(session, chatMessage.getConversationId()),
+                chatMessage.getBusinessLine());
+        if (!hasText(resolved)) {
+            throw new RuntimeException("缺少业务线（须由网关透传 X-Business-Line），消息无法保存");
+        }
+        chatMessage.setBusinessLine(resolved.trim());
     }
 
     /**
@@ -88,5 +129,3 @@ public class UserContextService {
         return value != null && !value.trim().isEmpty();
     }
 }
-
-

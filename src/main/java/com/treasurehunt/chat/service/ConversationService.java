@@ -2,6 +2,7 @@ package com.treasurehunt.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.treasurehunt.chat.domain.ChatConversationDO;
+import com.treasurehunt.chat.domain.ChatConversationMemberDO;
 import com.treasurehunt.chat.domain.ChatMessageDO;
 import com.treasurehunt.chat.domain.MallShopDO;
 import com.treasurehunt.chat.mapper.ChatConversationMapper;
@@ -12,6 +13,8 @@ import com.treasurehunt.chat.vo.MallShopVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * 会话管理服务
@@ -29,7 +32,44 @@ public class ConversationService {
     
     @Autowired
     private MallShopService mallShopService;
-    
+
+    public String requireBusinessLineByConversationId(String conversationId) {
+        if (conversationId == null || conversationId.isEmpty()) {
+            throw new IllegalArgumentException("conversationId 不能为空");
+        }
+        QueryWrapper<ChatConversationDO> query = new QueryWrapper<>();
+        query.eq("conversation_id", conversationId);
+        ChatConversationDO conversation = conversationMapper.selectOne(query);
+        if (conversation == null || conversation.getBusinessLine() == null
+                || conversation.getBusinessLine().trim().isEmpty()) {
+            throw new IllegalStateException("会话缺少业务线，无法维护群成员: conversationId=" + conversationId);
+        }
+        return conversation.getBusinessLine().trim();
+    }
+
+    public void enrichMemberBusinessLine(ChatConversationMemberDO member) {
+        if (member == null) {
+            return;
+        }
+        if (member.getBusinessLine() != null && !member.getBusinessLine().trim().isEmpty()) {
+            member.setBusinessLine(member.getBusinessLine().trim());
+            return;
+        }
+        member.setBusinessLine(requireBusinessLineByConversationId(member.getConversationId()));
+    }
+
+    public void enrichMemberBusinessLine(List<ChatConversationMemberDO> members) {
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+        String businessLine = requireBusinessLineByConversationId(members.get(0).getConversationId());
+        for (ChatConversationMemberDO member : members) {
+            if (member != null) {
+                member.setBusinessLine(businessLine);
+            }
+        }
+    }
+
     /**
      * 检查用户在指定店铺是否有历史会话
      * 

@@ -13,7 +13,7 @@ CREATE TABLE chat_conversation (
   customer_id BIGINT NOT NULL COMMENT '客户用户ID（发起方）',
   agent_id BIGINT NULL COMMENT '分配的客服座席ID（可为空，未分配时为null）',
   status VARCHAR(16) NOT NULL DEFAULT 'waiting' COMMENT '会话状态：waiting-等待客服响应(群聊里还没有人类客服),active-正常活跃会话(还在聊天),closed-会话关闭(客服询问客户是否还有问题,客服手动关闭),deleted_by_customer-客户删除会话(软删除),deleted_by_agent-客服删除会话(预留,主要是有人来骚扰,拉黑用的)',
-  tenant_id BIGINT NOT NULL DEFAULT 1 COMMENT '多租户标识，亦即商户/店铺ID',
+  tenant_id BIGINT NULL DEFAULT NULL COMMENT '经营主体元数据（来自 mall_shop.tenant_id；无则 NULL）',
   shop_id BIGINT NULL COMMENT '店铺ID（可为空）',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -79,7 +79,7 @@ CREATE TABLE chat_agent (
   agent_id BIGINT NOT NULL COMMENT '客服ID（唯一标识）',
   agent_name VARCHAR(128) NOT NULL COMMENT '客服姓名',
   password VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）',
-  agent_type VARCHAR(16) NOT NULL DEFAULT 'pre-sales' COMMENT '客服类型：pre-sales-售前客服,after-sales-售后客服,system-系统客服',
+  agent_type VARCHAR(16) NOT NULL DEFAULT 'pre-sales' COMMENT '客服类型：pre-sales-售前,after-sales-售后,corporate-公司级(法务税务等无店铺/兜底),system-系统',
   status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT '客服状态：active-活跃,inactive-非活跃,offline-离线',
   max_concurrent_conversations INT DEFAULT 10 COMMENT '最大并发会话数',
   current_conversations INT DEFAULT 0 COMMENT '当前会话数',
@@ -240,3 +240,4 @@ UPDATE mall_shop SET shop_id = id;
 ALTER TABLE mall_shop
   ADD UNIQUE KEY uk_shop_id (shop_id);
 
+-- 后续增量 DDL 见 doc/modify.sql（执行完本文件后再按需追加）

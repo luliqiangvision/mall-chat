@@ -1,6 +1,11 @@
 package com.treasurehunt.chat.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.treasurehunt.chat.domain.ChatConversationDO;
 import com.treasurehunt.chat.domain.ChatMessageDO;
+import com.treasurehunt.chat.mapper.ChatConversationMapper;
 import com.treasurehunt.chat.mapper.ChatMessageMapper;
 import com.treasurehunt.chat.component.manager.MessageIdManager;
 import com.treasurehunt.chat.component.manager.MessageIdGenerateResult;
@@ -17,6 +22,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -29,6 +36,9 @@ public class RobotAgentService {
 
     @Autowired
     private ChatMessageMapper chatMessageMapper;
+
+    @Autowired
+    private ChatConversationMapper conversationMapper;
 
     @Autowired
     private MessageIdManager messageIdManager;
@@ -57,6 +67,8 @@ public class RobotAgentService {
      * Redis key 前缀：记录每个会话的最后自动回复时间
      */
     private static final String REDIS_KEY_PREFIX = "chat:robot:auto-reply:";
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * 判断当前是否在工作时间内
@@ -185,6 +197,11 @@ public class RobotAgentService {
      */
     private void sendRobotMessage(String conversationId, Long customerServerMsgId, String content, String messageType,String customerId,Long shopId) {
         try {
+            String businessLine = resolveBusinessLineForConversation(conversationId);
+            if (businessLine == null || businessLine.isEmpty()) {
+                log.warn("会话无业务线，跳过机器人消息落库: conversationId={}", conversationId);
+                return;
+            }
             // 使用MessageIdManager生成serverMsgId，确保唯一性
             MessageIdGenerateResult genResult = messageIdManager.generateServerMsgId(conversationId);
             Long robotServerMsgId = genResult.getServerMsgId();
@@ -198,10 +215,11 @@ public class RobotAgentService {
                     .fromUserId("robot_001")
                     .msgType("text")
                     .content(content)
-                    .payloadJson("{\"system_message\": true, \"message_type\": \"" + messageType + "\"}")
+                    .payloadJson(buildSystemPayloadJson(messageType))
                     .status("PENDING")
                     .pushAttempts(0)
                     .shopId(shopId)
+                    .businessLine(businessLine)
                     .createdAt(new Date())
                     .build();
 
@@ -227,5 +245,31 @@ public class RobotAgentService {
         } catch (Exception e) {
             log.error("机器人客服发送消息失败: conversationId={}, messageType={}", conversationId, messageType, e);
         }
+    }
+
+    private String buildSystemPayloadJson(String messageType) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("system_message", true);
+        payload.put("message_type", messageType);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            log.warn("机器人消息 payload 序列化失败，使用最小载荷: messageType={}", messageType, e);
+            return "{\"system_message\":true}";
+        }
+    }
+
+    private String resolveBusinessLineForConversation(String conversationId) {
+        if (conversationId == null || conversationId.isEmpty()) {
+            return null;
+        }
+        QueryWrapper<ChatConversationDO> query = new QueryWrapper<>();
+        query.eq("conversation_id", conversationId);
+        ChatConversationDO conversation = conversationMapper.selectOne(query);
+        if (conversation == null || conversation.getBusinessLine() == null
+                || conversation.getBusinessLine().trim().isEmpty()) {
+            return null;
+        }
+        return conversation.getBusinessLine().trim();
     }
 }

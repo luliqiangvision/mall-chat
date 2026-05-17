@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treasurehunt.chat.framework.core.websocket.mvc.dispatcher.WebSocketDispatcher;
 import com.treasurehunt.chat.framework.core.websocket.mvc.model.WebSocketDataWrapper;
 import com.treasurehunt.chat.vo.WebSocketUserInfo;
+import com.treasurehunt.chat.utils.BusinessLineResolver;
 import com.treasurehunt.chat.security.WebSocketConnectionManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +71,22 @@ public class CustomerWebSocketHandler implements WebSocketHandler {
             return;
         }
 
+        String businessLineHeader = session.getHandshakeHeaders().getFirst("X-Business-Line");
+        if (businessLineHeader == null || businessLineHeader.trim().isEmpty()) {
+            log.warn("客户WebSocket连接缺少 X-Business-Line，关闭连接: userId={}", userId);
+            session.close(CloseStatus.BAD_DATA.withReason("Missing X-Business-Line"));
+            return;
+        }
+
+        final String businessLine;
+        try {
+            businessLine = BusinessLineResolver.resolve(businessLineHeader);
+        } catch (IllegalArgumentException ex) {
+            log.warn("客户WebSocket连接业务线非法，关闭连接: userId={}, reason={}", userId, ex.getMessage());
+            session.close(CloseStatus.BAD_DATA.withReason("Invalid X-Business-Line"));
+            return;
+        }
+
         // 获取客户端IP
         String clientIp = connectionManager.getClientIp(session);
 
@@ -86,9 +103,10 @@ public class CustomerWebSocketHandler implements WebSocketHandler {
         // 注册连接
         connectionManager.registerConnection(session.getId(), userId, clientIp);
 
-        // 创建用户信息对象
+        // 创建用户信息对象（业务线与 HTTP 一致：网关握手透传 X-Business-Line）
         WebSocketUserInfo userInfo = new WebSocketUserInfo(userId, userType);
-        log.info("客户WebSocket连接用户信息 - 用户ID: {}, 用户类型: {}", userId, userType);
+        userInfo.setBusinessLine(businessLine);
+        log.info("客户WebSocket连接用户信息 - 用户ID: {}, 用户类型: {}, businessLine: {}", userId, userType, businessLine);
 
         // 存储客户会话
         SessionManager.addCustomerSession(userId, session);

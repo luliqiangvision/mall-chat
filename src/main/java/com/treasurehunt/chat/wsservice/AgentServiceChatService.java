@@ -118,6 +118,8 @@ public class AgentServiceChatService {
             // 1.7. 过滤消息内容（清理恶意内容）
             String filteredContent = securityFilter.filterMessage(chatMessage.getContent());
             chatMessage.setContent(filteredContent);
+            // 1.8. 业务线必填（落库冗余 chat_message.business_line）
+            userContextService.applyBusinessLineForPersist(session, chatMessage);
             // 2.x 幂等性与降级（优先 Redis，失败回退 MySQL）
             IdempotencyCheckResult idem = idempotencyService.checkBeforePersist(chatMessage.getConversationId(), chatMessage.getClientMsgId());
             if (idem.isDuplicateFound()) {

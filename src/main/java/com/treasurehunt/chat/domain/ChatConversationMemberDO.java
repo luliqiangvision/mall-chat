@@ -20,6 +20,10 @@ public class ChatConversationMemberDO {
     @TableField("conversation_id")
     private String conversationId;
 
+    /** 业务线（冗余，与 chat_conversation.business_line 一致） */
+    @TableField("business_line")
+    private String businessLine;
+
     /** 成员类型：customer|agent|system */
     @TableField("member_type")
     private String memberType;

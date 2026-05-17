@@ -3,6 +3,7 @@ package com.treasurehunt.chat.controller;
 import cn.dev33.satoken.stp.SaTokenInfo;
 import com.treasurehuntshop.mall.common.api.commonUtil.CommonResult;
 import com.treasurehunt.chat.domain.ChatAgentDO;
+import com.treasurehunt.chat.context.ChatRequestContext;
 import com.treasurehunt.chat.service.AgentLoginService;
 import com.treasurehunt.chat.vo.AgentLoginRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,8 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 客服登录控制器
- * 负责客服的登录认证相关接口
+ * 客服登录控制器。登录/identities 的业务线由网关 {@code businessLine} 头写入 {@code X-Business-Line}；
+ * 登录后 {@code /chat/agent-service/**} 从 JWT extra 读取。
  */
 @Slf4j
 @RestController
@@ -42,9 +43,10 @@ public class AgentLoginController {
     @Operation(summary = "登录以后返回token")
     @PostMapping("/login")
     public CommonResult<Map<String, String>> login(@Validated @RequestBody AgentLoginRequest request) {
-        log.info("处理客服登录请求: agentName={}", request.getAgentName());
+        String businessLine = ChatRequestContext.getBusinessLine();
+        log.info("处理客服登录请求: agentName={}, businessLine={}", request.getAgentName(), businessLine);
         try {
-            SaTokenInfo saTokenInfo = agentLoginService.login(request);
+            SaTokenInfo saTokenInfo = agentLoginService.login(request, businessLine);
             if (saTokenInfo == null) {
                 return CommonResult.buildError("用户名或密码错误");
             }
@@ -126,8 +128,8 @@ public class AgentLoginController {
      */
     @Operation(summary = "查询客服身份列表")
     @GetMapping("/identities")
-    public CommonResult<List<Map<String, Object>>> getAgentIdentities(@RequestParam Long subjectId,
-                                                                       @RequestParam String businessLine) {
+    public CommonResult<List<Map<String, Object>>> getAgentIdentities(@RequestParam Long subjectId) {
+        String businessLine = ChatRequestContext.getBusinessLine();
         try {
             List<ChatAgentDO> agents = agentLoginService.listAgentIdentities(subjectId, businessLine);
             List<Map<String, Object>> result = new ArrayList<>();

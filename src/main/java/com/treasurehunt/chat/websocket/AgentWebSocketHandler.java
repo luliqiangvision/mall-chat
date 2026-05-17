@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treasurehunt.chat.framework.core.websocket.mvc.dispatcher.WebSocketDispatcher;
 import com.treasurehunt.chat.framework.core.websocket.mvc.model.WebSocketDataWrapper;
 import com.treasurehunt.chat.vo.WebSocketUserInfo;
+import com.treasurehunt.chat.utils.AgentTokenSupport;
 import com.treasurehunt.chat.security.WebSocketConnectionManager;
 import com.treasurehunt.chat.security.WebSocketRateLimiter;
 import com.treasurehunt.chat.security.WebSocketSecurityFilter;
@@ -38,14 +39,18 @@ public class AgentWebSocketHandler implements WebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         log.info("WebSocket连接建立: {}", session.getId());
-        // 网关已经完成认证并透传用户信息，直接从握手头获取
-        String userId = session.getHandshakeHeaders().getFirst("X-User-Id");
-        String userType = session.getHandshakeHeaders().getFirst("X-User-Type");
-        if (userId == null || userType == null || !"agent".equals(userType)) {
-            log.warn("WebSocket连接缺少客服用户信息或用户类型不正确，关闭连接");
-            session.close(CloseStatus.BAD_DATA.withReason("Missing or incorrect agent service info"));
+        final String userId;
+        final String businessLine;
+        try {
+            AgentTokenSupport.AgentAuthContext auth = AgentTokenSupport.authenticateWebSocket(session);
+            userId = auth.getAgentId();
+            businessLine = auth.getBusinessLine();
+        } catch (IllegalArgumentException ex) {
+            log.warn("客服WebSocket token 校验失败，关闭连接: {}", ex.getMessage());
+            session.close(CloseStatus.BAD_DATA.withReason("Invalid agent token"));
             return;
         }
+        String userType = "agent";
         // 获取客户端IP
         String clientIp = connectionManager.getClientIp(session);
         // 检查连接限制（只记录，不拒绝连接）
@@ -59,9 +64,9 @@ public class AgentWebSocketHandler implements WebSocketHandler {
         }
         // 注册连接
         connectionManager.registerConnection(session.getId(), userId, clientIp);
-        // 创建用户信息对象
         WebSocketUserInfo userInfo = new WebSocketUserInfo(userId, userType);
-        log.info("客服WebSocket连接用户信息 - 用户ID: {}, 用户类型: {}", userId, userType);
+        userInfo.setBusinessLine(businessLine);
+        log.info("客服WebSocket连接用户信息 - 用户ID: {}, 用户类型: {}, businessLine: {}", userId, userType, businessLine);
         // 存储客服会话
         SessionManager.addCustomerServiceSession(userId, session);
         log.info("客服连接: {}", userId);

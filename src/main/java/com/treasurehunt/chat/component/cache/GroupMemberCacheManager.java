@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treasurehunt.chat.domain.ChatConversationMemberDO;
 import com.treasurehunt.chat.mapper.ChatConversationMemberMapper;
+import com.treasurehunt.chat.service.ConversationService;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,9 @@ public class GroupMemberCacheManager {
     
     @Autowired
     private ChatConversationMemberMapper conversationMemberMapper;
+
+    @Autowired
+    private ConversationService conversationService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -67,7 +71,9 @@ public class GroupMemberCacheManager {
             
             // 2. 缓存未命中，查数据库
             log.debug("缓存未命中，从数据库查询群聊成员: {}", conversationId);
-            List<ChatConversationMemberDO> members = conversationMemberMapper.selectByConversationId(conversationId);
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+            List<ChatConversationMemberDO> members = conversationMemberMapper
+                    .selectByConversationIdAndBusinessLine(conversationId, businessLine);
             
             // 3. 将结果写入缓存
             if (members != null && !members.isEmpty()) {
@@ -80,8 +86,8 @@ public class GroupMemberCacheManager {
             
         } catch (Exception e) {
             log.error("获取群聊成员失败: {}", conversationId, e);
-            // 缓存异常时，直接查数据库
-            return conversationMemberMapper.selectByConversationId(conversationId);
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+            return conversationMemberMapper.selectByConversationIdAndBusinessLine(conversationId, businessLine);
         }
     }
     
@@ -107,7 +113,9 @@ public class GroupMemberCacheManager {
             
             // 2. 缓存未命中，查数据库
             log.debug("缓存未命中，从数据库查询群聊成员ID: {}", conversationId);
-            List<ChatConversationMemberDO> members = conversationMemberMapper.selectByConversationId(conversationId);
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+            List<ChatConversationMemberDO> members = conversationMemberMapper
+                    .selectByConversationIdAndBusinessLine(conversationId, businessLine);
             Set<String> memberIds = members.stream()
                     .map(ChatConversationMemberDO::getMemberId)
                     .collect(Collectors.toSet());
@@ -123,8 +131,9 @@ public class GroupMemberCacheManager {
             
         } catch (Exception e) {
             log.error("获取群聊成员ID失败: {}", conversationId, e);
-            // 缓存异常时，直接查数据库
-            List<ChatConversationMemberDO> members = conversationMemberMapper.selectByConversationId(conversationId);
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+            List<ChatConversationMemberDO> members = conversationMemberMapper
+                    .selectByConversationIdAndBusinessLine(conversationId, businessLine);
             return members.stream()
                     .map(ChatConversationMemberDO::getMemberId)
                     .collect(Collectors.toSet());
@@ -140,6 +149,7 @@ public class GroupMemberCacheManager {
      */
     public void addGroupMember(String conversationId, ChatConversationMemberDO member) {
         try {
+            conversationService.enrichMemberBusinessLine(member);
             // 1. 更新数据库
             conversationMemberMapper.insert(member);
             log.info("添加群聊成员到数据库: {} -> {}", conversationId, member.getMemberId());
@@ -162,8 +172,10 @@ public class GroupMemberCacheManager {
      */
     public void removeGroupMember(String conversationId, String memberId) {
         try {
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
             // 1. 更新数据库
-            conversationMemberMapper.deleteByConversationIdAndUserId(conversationId, memberId);
+            conversationMemberMapper.deleteByConversationIdBusinessLineAndMemberId(conversationId, businessLine,
+                    memberId);
             log.info("从数据库移除群聊成员: {} -> {}", conversationId, memberId);
             
             // 2. 更新缓存
@@ -184,6 +196,7 @@ public class GroupMemberCacheManager {
      */
     public void addGroupMembers(String conversationId, List<ChatConversationMemberDO> members) {
         try {
+            conversationService.enrichMemberBusinessLine(members);
             // 1. 批量插入数据库（使用MyBatis-Plus的批量插入）
             conversationMemberMapper.insertBatch(members);
             log.info("批量添加群聊成员到数据库: {} -> 数量: {}", conversationId, members.size());
@@ -206,8 +219,10 @@ public class GroupMemberCacheManager {
      */
     public void removeGroupMembers(String conversationId, List<String> memberIds) {
         try {
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
             // 1. 批量删除数据库（使用MyBatis-Plus的批量删除）
-            conversationMemberMapper.deleteBatchByConversationIdAndMemberIds(conversationId, memberIds);
+            conversationMemberMapper.deleteBatchByConversationIdBusinessLineAndMemberIds(conversationId, businessLine,
+                    memberIds);
             log.info("批量移除群聊成员从数据库: {} -> 数量: {}", conversationId, memberIds.size());
             
             // 2. 更新缓存
@@ -259,7 +274,9 @@ public class GroupMemberCacheManager {
             commands.del(idsCacheKey);
             
             // 2. 重新查询数据库
-            List<ChatConversationMemberDO> members = conversationMemberMapper.selectByConversationId(conversationId);
+            String businessLine = conversationService.requireBusinessLineByConversationId(conversationId);
+            List<ChatConversationMemberDO> members = conversationMemberMapper
+                    .selectByConversationIdAndBusinessLine(conversationId, businessLine);
             
             // 3. 更新缓存
             if (members != null && !members.isEmpty()) {

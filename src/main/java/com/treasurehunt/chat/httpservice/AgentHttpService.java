@@ -11,7 +11,8 @@ import com.treasurehunt.chat.domain.ChatConversationMemberDO;
 import com.treasurehunt.chat.component.manager.ChatWindowManager;
 import com.treasurehunt.chat.service.MallShopService;
 import com.treasurehunt.chat.vo.ActiveConversations;
-import com.treasurehunt.chat.vo.GetUnassignedConversationsResult;
+import com.treasurehunt.chat.enums.ConversationStatusEnum;
+import com.treasurehunt.chat.mapper.ChatAgentMapper;
 import com.treasurehunt.chat.vo.JoinConversationRequest;
 import com.treasurehunt.chat.vo.JoinConversationResult;
 import com.treasurehunt.chat.vo.PullMessageWithPagedQueryRequest;
@@ -32,7 +33,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +65,9 @@ public class AgentHttpService {
 
     @Autowired
     private ChatConversationMemberMapper conversationMemberMapper;
+
+    @Autowired
+    private ChatAgentMapper chatAgentMapper;
     
     @Autowired
     private UserConversationReadMapper userConversationReadMapper;
@@ -65,20 +76,19 @@ public class AgentHttpService {
     private MallShopService mallShopService;
 
     /**
-     * 获取客服的活跃会话列表
-     * 
-     * @param agentId 客服ID
-     * @return 活跃会话列表
+     * 店铺主接待会话列表：{@code agent_id = 当前客服} 且 {@code shop_id IS NOT NULL}。
+     * 无店铺的公司级主接待见 {@link #listCorporateConversations(String, String)}。
+     * 被拉进群协作的会话见 {@link #getParticipantConversations(String, String)}。
      */
     public ActiveConversations getConversations(String agentId, String businessLine) {
-        log.debug("开始获取客服活跃会话列表: agentId={}, businessLine={}", agentId, businessLine);
+        log.debug("开始获取客服店铺主接待会话列表: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
-            // 1. 查询客服的活跃会话
             List<ChatConversationDO> conversations = conversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
                     .eq("business_line", businessLine)
                     .eq("agent_id", agentId)
+                    .isNotNull("shop_id")
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
             );
@@ -125,45 +135,176 @@ public class AgentHttpService {
     }
 
     /**
-     * 获取待分配会话列表
-     * 
-     * @param agentId 客服ID
-     * @return 待分配会话列表
+     * 参与协作会话列表：查 {@code chat_conversation_member}（agent、未退群），
+     * 且排除当前客服已是主接待（{@code chat_conversation.agent_id}）的会话，避免与主接待列表重复。
+     * 加入群聊时只写成员表，不写 {@code agent_id}。
      */
-    public GetUnassignedConversationsResult getUnassignedConversations(String agentId, String businessLine) {
-        log.debug("开始获取待分配会话列表: agentId={}, businessLine={}", agentId, businessLine);
-        
+    public ActiveConversations getParticipantConversations(String agentId, String businessLine) {
+        log.debug("开始获取客服参与协作会话列表: agentId={}, businessLine={}", agentId, businessLine);
+
         try {
-            // 查询待分配的会话
-            List<ChatConversationDO> unassignedConversations = conversationMapper.selectList(
-                new QueryWrapper<ChatConversationDO>()
-                    .eq("business_line", businessLine)
-                    .isNull("agent_id")
-                    .eq("status", "waiting")
-                    .orderByAsc("created_at")
-            );
-            
-            if (unassignedConversations.isEmpty()) {
-                log.debug("没有待分配的会话: agentId={}", agentId);
-                return GetUnassignedConversationsResult.builder()
+            List<ChatConversationDO> conversations = conversationMemberMapper
+                    .selectParticipantConversationsForAgent(businessLine, agentId);
+
+            if (conversations.isEmpty()) {
+                return ActiveConversations.builder()
                         .conversations(new ArrayList<>())
+                        .totalUnreadCount(0)
+                        .conversationUnreadCounts(new HashMap<>())
                         .build();
             }
-            
-            // 批量获取会话信息（包含最后一条消息和未读消息数）
-            // 传入null表示不计算未读消息数，isAgent参数可以是任意值（这里传入true表示是客服场景）
-            List<ConversationInfo> conversationInfos = conversationInfoService.getConversationInfos(unassignedConversations, null, true);
-            
-            return GetUnassignedConversationsResult.builder()
+
+            List<ConversationInfo> conversationInfos = conversationInfoService
+                    .getConversationInfos(conversations, agentId, true);
+
+            Integer totalUnreadCount = conversationInfos.stream()
+                    .mapToInt(ConversationInfo::getUnreadCount)
+                    .sum();
+
+            Map<String, Integer> conversationUnreadCounts = conversationInfos.stream()
+                    .collect(Collectors.toMap(
+                            ConversationInfo::getConversationId,
+                            ConversationInfo::getUnreadCount,
+                            (existing, replacement) -> existing
+                    ));
+
+            return ActiveConversations.builder()
                     .conversations(conversationInfos)
+                    .totalUnreadCount(totalUnreadCount)
+                    .conversationUnreadCounts(conversationUnreadCounts)
                     .build();
-                    
+
         } catch (Exception e) {
-            log.error("获取待分配会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
-            return GetUnassignedConversationsResult.builder()
+            log.error("客服获取参与协作会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
+            return ActiveConversations.builder()
                     .conversations(new ArrayList<>())
+                    .totalUnreadCount(0)
+                    .conversationUnreadCounts(new HashMap<>())
                     .build();
         }
+    }
+
+    /**
+     * 没有配置客服接待的会话：同业务线下 {@code agent_id IS NULL} 且 {@code status=waiting}（如店铺售前绑定池空，进线未能分配主接待）。
+     * 售前仅能看到自己在 {@code chat_agent_shop_relation} 绑定店铺下的此类会话。
+     */
+    public ActiveConversations listConversationsWithoutConfiguredAgentReception(String agentId, String businessLine) {
+        log.debug("开始获取未配置客服接待的会话列表: agentId={}, businessLine={}", agentId, businessLine);
+
+        try {
+            List<Long> boundShopIds = chatAgentMapper.selectActiveShopIdsByBusinessLineAndAgent(businessLine, agentId);
+            if (boundShopIds == null || boundShopIds.isEmpty()) {
+                log.debug("客服无店铺绑定，未配置客服接待会话列表为空: agentId={}, businessLine={}", agentId, businessLine);
+                return emptyActiveConversations();
+            }
+
+            List<ChatConversationDO> withoutReceptionConversations = conversationMapper.selectList(
+                    new QueryWrapper<ChatConversationDO>()
+                            .eq("business_line", businessLine)
+                            .isNull("agent_id")
+                            .eq("status", ConversationStatusEnum.WAITING.getCode())
+                            .in("shop_id", boundShopIds)
+                            .orderByAsc("created_at"));
+
+            if (withoutReceptionConversations.isEmpty()) {
+                log.debug("没有未配置客服接待的会话: agentId={}, businessLine={}", agentId, businessLine);
+                return emptyActiveConversations();
+            }
+
+            List<ConversationInfo> conversationInfos = conversationInfoService
+                    .getConversationInfos(withoutReceptionConversations, agentId, true);
+
+            Integer totalUnreadCount = conversationInfos.stream()
+                    .mapToInt(ConversationInfo::getUnreadCount)
+                    .sum();
+
+            Map<String, Integer> conversationUnreadCounts = conversationInfos.stream()
+                    .collect(Collectors.toMap(
+                            ConversationInfo::getConversationId,
+                            ConversationInfo::getUnreadCount,
+                            (existing, replacement) -> existing));
+
+            return ActiveConversations.builder()
+                    .conversations(conversationInfos)
+                    .totalUnreadCount(totalUnreadCount)
+                    .conversationUnreadCounts(conversationUnreadCounts)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("获取未配置客服接待的会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
+            return emptyActiveConversations();
+        }
+    }
+
+    /**
+     * 公司级会话列表（无 {@code shop_id}）：当前客服为主接待的会话，以及同业务线下尚未分配主接待的 waiting 会话。
+     * 供老板 / 公司级坐席工作台使用；店铺售前请用店铺主接待与「未配置客服接待」接口。
+     */
+    public ActiveConversations listCorporateConversations(String agentId, String businessLine) {
+        log.debug("开始获取公司级会话列表: agentId={}, businessLine={}", agentId, businessLine);
+
+        try {
+            List<ChatConversationDO> unassignedCorporate = conversationMapper.selectList(
+                    new QueryWrapper<ChatConversationDO>()
+                            .eq("business_line", businessLine)
+                            .isNull("shop_id")
+                            .isNull("agent_id")
+                            .eq("status", ConversationStatusEnum.WAITING.getCode())
+                            .orderByAsc("created_at"));
+
+            List<ChatConversationDO> primaryCorporate = conversationMapper.selectList(
+                    new QueryWrapper<ChatConversationDO>()
+                            .eq("business_line", businessLine)
+                            .isNull("shop_id")
+                            .eq("agent_id", agentId)
+                            .in("status", "active", "waiting")
+                            .orderByDesc("updated_at"));
+
+            LinkedHashMap<String, ChatConversationDO> merged = new LinkedHashMap<>();
+            for (ChatConversationDO conversation : unassignedCorporate) {
+                merged.put(conversation.getConversationId(), conversation);
+            }
+            for (ChatConversationDO conversation : primaryCorporate) {
+                merged.putIfAbsent(conversation.getConversationId(), conversation);
+            }
+
+            if (merged.isEmpty()) {
+                log.debug("没有公司级会话: agentId={}, businessLine={}", agentId, businessLine);
+                return emptyActiveConversations();
+            }
+
+            List<ChatConversationDO> conversations = new ArrayList<>(merged.values());
+            List<ConversationInfo> conversationInfos = conversationInfoService
+                    .getConversationInfos(conversations, agentId, true);
+
+            Integer totalUnreadCount = conversationInfos.stream()
+                    .mapToInt(ConversationInfo::getUnreadCount)
+                    .sum();
+
+            Map<String, Integer> conversationUnreadCounts = conversationInfos.stream()
+                    .collect(Collectors.toMap(
+                            ConversationInfo::getConversationId,
+                            ConversationInfo::getUnreadCount,
+                            (existing, replacement) -> existing));
+
+            return ActiveConversations.builder()
+                    .conversations(conversationInfos)
+                    .totalUnreadCount(totalUnreadCount)
+                    .conversationUnreadCounts(conversationUnreadCounts)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("获取公司级会话列表失败: agentId={}, businessLine={}", agentId, businessLine, e);
+            return emptyActiveConversations();
+        }
+    }
+
+    private static ActiveConversations emptyActiveConversations() {
+        return ActiveConversations.builder()
+                .conversations(new ArrayList<>())
+                .totalUnreadCount(0)
+                .conversationUnreadCounts(new HashMap<>())
+                .build();
     }
 
     /**
@@ -184,7 +325,6 @@ public class AgentHttpService {
                     .build();
             }
             
-            // 2. 验证会话是否存在
             QueryWrapper<ChatConversationDO> conversationQuery = new QueryWrapper<>();
             conversationQuery.eq("business_line", businessLine).eq("conversation_id", conversationId);
             ChatConversationDO conversation = conversationMapper.selectOne(conversationQuery);
@@ -195,16 +335,15 @@ public class AgentHttpService {
                     .build();
             }
             
-            // 3. 检查客服是否已经在群里（是否已经是会话成员）
             QueryWrapper<ChatConversationMemberDO> memberQuery = new QueryWrapper<>();
             memberQuery.eq("conversation_id", conversationId)
+                      .eq("business_line", businessLine)
                       .eq("member_type", "agent")
                       .eq("member_id", agentId)
                       .isNull("left_at");
             ChatConversationMemberDO existingMember = conversationMemberMapper.selectOne(memberQuery);
             if (existingMember != null) {
                 log.info("客服已经是会话成员: agentId={}, conversationId={}", agentId, conversationId);
-                // 返回现有会话信息
                 List<ConversationInfo> conversationInfos = conversationInfoService.getConversationInfos(Arrays.asList(conversation), agentId, true);
                 ConversationInfo conversationInfo = conversationInfos.get(0);
                 return JoinConversationResult.builder()
@@ -212,10 +351,29 @@ public class AgentHttpService {
                     .conversationInfo(conversationInfo)
                     .build();
             }
-            
-            // 4. 将会话分配给该客服（数据库层面）
+
+            boolean withoutConfiguredAgentReception = conversation.getAgentId() == null
+                    || conversation.getAgentId().trim().isEmpty();
+            if (withoutConfiguredAgentReception) {
+                if (!ConversationStatusEnum.WAITING.getCode().equals(conversation.getStatus())) {
+                    return JoinConversationResult.builder()
+                            .success(false)
+                            .errorMessage("仅未配置客服接待（waiting 且无主接待）的会话可认领")
+                            .build();
+                }
+                if (conversation.getShopId() != null
+                        && !isAgentBoundToShop(businessLine, agentId, conversation.getShopId())) {
+                    return JoinConversationResult.builder()
+                            .success(false)
+                            .errorMessage("您未绑定该店铺，无法接待此会话")
+                            .build();
+                }
+                return claimConversationWithoutConfiguredAgentReception(conversation, agentId, businessLine);
+            }
+
             ChatConversationMemberDO member = new ChatConversationMemberDO();
             member.setConversationId(conversationId);
+            member.setBusinessLine(businessLine);
             member.setMemberType("agent");
             member.setMemberId(agentId);
             member.setJoinedAt(new Date());
@@ -228,10 +386,9 @@ public class AgentHttpService {
                     .build();
             }
             
-            // 5. 返回会话信息
             List<ConversationInfo> conversationInfos = conversationInfoService.getConversationInfos(Arrays.asList(conversation), agentId, true);
             ConversationInfo conversationInfo = conversationInfos.get(0);
-            log.info("客服成功加入会话: agentId={}, conversationId={}", agentId, conversationId);
+            log.info("客服协作加入会话: agentId={}, conversationId={}", agentId, conversationId);
             return JoinConversationResult.builder()
                 .success(true)
                 .conversationInfo(conversationInfo)
@@ -244,6 +401,49 @@ public class AgentHttpService {
                 .errorMessage("加入会话失败: " + e.getMessage())
                 .build();
         }
+    }
+
+    private boolean isAgentBoundToShop(String businessLine, String agentId, Long shopId) {
+        List<Long> shopIds = chatAgentMapper.selectActiveShopIdsByBusinessLineAndAgent(businessLine, agentId);
+        return shopIds != null && shopIds.contains(shopId);
+    }
+
+    /**
+     * 接待「未配置客服」的会话：写入主接待 {@code agent_id}、状态 active，并加入群成员。
+     */
+    private JoinConversationResult claimConversationWithoutConfiguredAgentReception(ChatConversationDO conversation,
+                                                                                    String agentId,
+                                                                                    String businessLine) {
+        String conversationId = conversation.getConversationId();
+        UpdateWrapper<ChatConversationDO> claimUpdate = new UpdateWrapper<>();
+        claimUpdate.eq("conversation_id", conversationId)
+                .eq("business_line", businessLine)
+                .isNull("agent_id")
+                .eq("status", ConversationStatusEnum.WAITING.getCode())
+                .set("agent_id", agentId)
+                .set("status", ConversationStatusEnum.ACTIVE.getCode())
+                .set("updated_at", new Date());
+        int claimed = conversationMapper.update(null, claimUpdate);
+        if (claimed <= 0) {
+            return JoinConversationResult.builder()
+                    .success(false)
+                    .errorMessage("会话已被其他客服认领或状态已变更")
+                    .build();
+        }
+
+        chatWindowManager.bindAgents(conversationId, Collections.singletonList(agentId));
+
+        ChatConversationDO updated = conversationMapper.selectOne(
+                new QueryWrapper<ChatConversationDO>()
+                        .eq("business_line", businessLine)
+                        .eq("conversation_id", conversationId));
+        List<ConversationInfo> conversationInfos = conversationInfoService
+                .getConversationInfos(Collections.singletonList(updated), agentId, true);
+        log.info("客服接待未配置客服的会话成功: agentId={}, conversationId={}", agentId, conversationId);
+        return JoinConversationResult.builder()
+                .success(true)
+                .conversationInfo(conversationInfos.get(0))
+                .build();
     }
 
     /**
@@ -278,6 +478,7 @@ public class AgentHttpService {
             // 3. 检查客服是否已经在群里（是否已经是会话成员）
             QueryWrapper<ChatConversationMemberDO> memberQuery = new QueryWrapper<>();
             memberQuery.eq("conversation_id", conversationId)
+                      .eq("business_line", businessLine)
                       .eq("member_type", "agent")
                       .eq("member_id", agentId)
                       .isNull("left_at");
@@ -293,9 +494,10 @@ public class AgentHttpService {
                     .build();
             }
             
-            // 4. 将会话分配给该客服（数据库层面）
+            // 4. 仅写入群成员表，不修改 chat_conversation.agent_id（主接待唯一）
             ChatConversationMemberDO member = new ChatConversationMemberDO();
             member.setConversationId(conversationId);
+            member.setBusinessLine(businessLine);
             member.setMemberType("agent");
             member.setMemberId(agentId);
             member.setJoinedAt(new Date());
@@ -377,26 +579,34 @@ public class AgentHttpService {
     }
 
     /**
-     * 获取客服聊天窗口列表
-     * 
-     * @param agentId 客服ID
-     * @return 会话视图Map，key为会话ID，value为会话视图VO
+     * 登录初始化聊天窗口：店铺主接待 + 参与协作的并集（不含无 shopId 公司级会话，见 {@link #listCorporateConversations}）。
      */
     public Map<String, ConversationViewVO> getChatWindowList(String agentId, String businessLine) {
         log.debug("开始获取客服聊天窗口列表: agentId={}, businessLine={}", agentId, businessLine);
         
         try {
-            // 1. 查询客服参与的所有会话
-            List<ChatConversationDO> conversations = conversationMapper.selectList(
+            List<ChatConversationDO> primaryHostConversations = conversationMapper.selectList(
                 new QueryWrapper<ChatConversationDO>()
                     .eq("business_line", businessLine)
                     .eq("agent_id", agentId)
+                    .isNotNull("shop_id")
                     .in("status", "active", "waiting")
                     .orderByDesc("updated_at")
             );
-            
+            List<ChatConversationDO> participantConversations = conversationMemberMapper
+                    .selectParticipantConversationsForAgent(businessLine, agentId);
+
+            LinkedHashMap<String, ChatConversationDO> merged = new LinkedHashMap<>();
+            for (ChatConversationDO conversation : primaryHostConversations) {
+                merged.put(conversation.getConversationId(), conversation);
+            }
+            for (ChatConversationDO conversation : participantConversations) {
+                merged.putIfAbsent(conversation.getConversationId(), conversation);
+            }
+
+            List<ChatConversationDO> conversations = new ArrayList<>(merged.values());
             if (conversations.isEmpty()) {
-                log.debug("客服没有参与任何会话: agentId={}", agentId);
+                log.debug("客服没有可展示的聊天窗口: agentId={}", agentId);
                 return new HashMap<>();
             }
             

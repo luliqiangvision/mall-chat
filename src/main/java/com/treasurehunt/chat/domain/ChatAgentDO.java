@@ -40,11 +40,8 @@ public class ChatAgentDO {
     @TableField("password")
     private String password;
 
-    /** 
-     * 客服类型：
-     * - pre-sales: 售前客服
-     * - after-sales: 售后客服  
-     * - system: 系统客服
+    /**
+     * 客服类型，见 {@link com.treasurehunt.chat.enums.AgentTypeEnum}（库字段与枚举 {@code code} 一致）。
      */
     @TableField("agent_type")
     private String agentType;

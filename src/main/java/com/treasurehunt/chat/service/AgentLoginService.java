@@ -1,5 +1,6 @@
 package com.treasurehunt.chat.service;
 
+import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.SaTokenInfo;
 import com.treasurehunt.chat.domain.ChatAgentDO;
 import com.treasurehunt.chat.mapper.ChatAgentMapper;
@@ -32,8 +33,8 @@ public class AgentLoginService {
      * @param request 登录请求
      * @return SaTokenInfo token信息
      */
-    public SaTokenInfo login(AgentLoginRequest request) {
-        log.info("客服登录请求: agentName={}", request.getAgentName());
+    public SaTokenInfo login(AgentLoginRequest request, String businessLine) {
+        log.info("客服登录请求: agentName={}, businessLine={}", request.getAgentName(), businessLine);
 
         // 1. 参数校验
         if (request.getAgentName() == null || request.getAgentName().isEmpty() ||
@@ -41,8 +42,8 @@ public class AgentLoginService {
             throw new RuntimeException("用户名或密码不能为空！");
         }
 
-        // 2. 根据客服名称查询客服信息
-        ChatAgentDO agent = chatAgentMapper.selectByAgentName(request.getAgentName());
+        // 2. 根据业务线 + 客服名称查询客服信息
+        ChatAgentDO agent = chatAgentMapper.selectByBusinessLineAndAgentName(businessLine, request.getAgentName());
         if (agent == null) {
             log.warn("客服不存在: agentName={}", request.getAgentName());
             throw new RuntimeException("客服名称或密码错误");
@@ -60,8 +61,10 @@ public class AgentLoginService {
             throw new RuntimeException("客服账号已被禁用");
         }
 
-        // 5. 登录校验成功后，调用登录方法
-        StpUtilForType.login(StpUtilForType.TYPE_AGENT_LOGIN, agent.getAgentId());
+        // 5. 登录校验成功后写入 token 扩展字段，供 getCurrentAgent 等业务线隔离查询使用
+        SaLoginModel loginModel = new SaLoginModel();
+        loginModel.setExtra("businessLine", agent.getBusinessLine());
+        StpUtilForType.login(StpUtilForType.TYPE_AGENT_LOGIN, agent.getAgentId(), loginModel);
         
         // 6. 获取当前登录用户Token信息
         SaTokenInfo saTokenInfo = StpUtilForType.getTokenInfo(StpUtilForType.TYPE_AGENT_LOGIN);
@@ -105,9 +108,15 @@ public class AgentLoginService {
     public ChatAgentDO getCurrentAgent() {
         // 从StpUtilForType获取当前登录的客服ID
         String agentId = StpUtilForType.getLoginIdAsString(StpUtilForType.TYPE_AGENT_LOGIN);
-        
-        // 根据客服ID查询客服信息
-        ChatAgentDO agent = chatAgentMapper.selectByAgentId(agentId);
+
+        Object businessLineObj = StpUtilForType.getExtra(StpUtilForType.TYPE_AGENT_LOGIN, "businessLine");
+        String businessLine = businessLineObj != null ? businessLineObj.toString().trim() : "";
+        if (businessLine.isEmpty()) {
+            log.warn("当前登录 token 缺少 businessLine 扩展字段: agentId={}", agentId);
+            throw new RuntimeException("缺少业务线信息，请重新登录（登录请求需携带 businessLine）");
+        }
+
+        ChatAgentDO agent = chatAgentMapper.selectByBusinessLineAndAgentId(businessLine, agentId);
         if (agent == null) {
             log.warn("当前登录的客服不存在: agentId={}", agentId);
             throw new RuntimeException("当前登录的客服不存在");
