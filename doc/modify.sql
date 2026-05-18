@@ -119,3 +119,9 @@ ALTER TABLE chat_conversation_member DROP INDEX  uq_conversation_member_active;
 
 CREATE UNIQUE INDEX  uk_bl_conversation_member_active ON chat_conversation_member
   (business_line, conversation_id, member_type, member_id, left_at);
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 chat_message.shop_id 允许为空：无店铺进线（公司级会话）消息与 chat_conversation.shop_id 一致为 NULL
+-- -----------------------------------------------------------------------------
+ALTER TABLE chat_message
+  MODIFY COLUMN shop_id BIGINT NULL COMMENT '店铺ID（无店铺进线时为 NULL，与 chat_conversation.shop_id 一致）';

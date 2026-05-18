@@ -50,7 +50,7 @@ CREATE TABLE chat_message (
   hash_code BINARY(32) NULL COMMENT '媒体哈希（图片/视频等，原始SHA-256 32字节）',
   status VARCHAR(16) DEFAULT 'PENDING' COMMENT '消息状态：PENDING-待推送,PUSHED-已推送,DELIVERED-已送达,READ-已读,FAILED-失败',
   push_attempts INT DEFAULT 0 COMMENT '推送重试次数',
-  shop_id BIGINT NOT NULL COMMENT '店铺ID（可为空）',
+  shop_id BIGINT NULL COMMENT '店铺ID（无店铺进线时为 NULL）',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   delivered_at DATETIME NULL COMMENT '送达时间',
   INDEX idx_conv_server (conversation_id, server_msg_id),

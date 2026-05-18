@@ -237,7 +237,8 @@ public class AgentHttpService {
     }
 
     /**
-     * 公司级会话列表（无 {@code shop_id}）：当前客服为主接待的会话，以及同业务线下尚未分配主接待的 waiting 会话。
+     * 公司级会话列表（无 {@code shop_id}）：同业务线下全部公司级 active/waiting 会话（不按主接待 agent_id 过滤），
+     * 未分配主接待的 waiting 排在前面。{@code agentId} 仅用于未读数等展示，不参与列表筛选。
      * 供老板 / 公司级坐席工作台使用；店铺售前请用店铺主接待与「未配置客服接待」接口。
      */
     public ActiveConversations listCorporateConversations(String agentId, String businessLine) {
@@ -252,11 +253,10 @@ public class AgentHttpService {
                             .eq("status", ConversationStatusEnum.WAITING.getCode())
                             .orderByAsc("created_at"));
 
-            List<ChatConversationDO> primaryCorporate = conversationMapper.selectList(
+            List<ChatConversationDO> activeCorporate = conversationMapper.selectList(
                     new QueryWrapper<ChatConversationDO>()
                             .eq("business_line", businessLine)
                             .isNull("shop_id")
-                            .eq("agent_id", agentId)
                             .in("status", "active", "waiting")
                             .orderByDesc("updated_at"));
 
@@ -264,7 +264,7 @@ public class AgentHttpService {
             for (ChatConversationDO conversation : unassignedCorporate) {
                 merged.put(conversation.getConversationId(), conversation);
             }
-            for (ChatConversationDO conversation : primaryCorporate) {
+            for (ChatConversationDO conversation : activeCorporate) {
                 merged.putIfAbsent(conversation.getConversationId(), conversation);
             }
 
