@@ -1,6 +1,8 @@
 package com.treasurehunt.chat.component.manager;
 
 import com.treasurehunt.chat.mapper.ChatMessageMapper;
+import com.treasurehuntshop.mall.common.constants.RedisKeyConstants;
+import com.treasurehuntshop.mall.common.constants.RedisLockKeyConstants;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +16,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class MessageIdManager {
-
-    private static final String REDIS_KEY_PREFIX = "chat:serverMsgId:";
-    private static final String LOCK_KEY_PREFIX = "lock:chat:serverMsgId:";
 
     @Autowired
     private StatefulRedisConnection<String, String> redisConnection;
@@ -38,7 +37,7 @@ public class MessageIdManager {
             throw new IllegalArgumentException("conversationId must not be empty");
         }
 
-        final String key = REDIS_KEY_PREFIX + conversationId;
+        final String key = RedisKeyConstants.CHAT_SERVER_MSG_ID_KEY + conversationId;
 
         // 1) 快路径：已有 key，直接自增（仅包裹 Redis 操作）
         try {
@@ -67,7 +66,7 @@ public class MessageIdManager {
         Long maxId = safeQueryMaxId(conversationId);
 
         try {
-            final String lockName = LOCK_KEY_PREFIX + conversationId;
+            final String lockName = RedisLockKeyConstants.CHAT_SERVER_MSG_ID_LOCK_KEY + conversationId;
             RLock lock = redissonClient.getLock(lockName);
             lock.lock(10, TimeUnit.SECONDS);
             try {
